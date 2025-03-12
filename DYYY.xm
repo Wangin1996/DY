@@ -25,10 +25,15 @@
 
 %hook AWELongPressPanelViewModel
 
-// 拦截原始数据源方法（假设方法名为 panelDataArray）
-- (NSArray *)panelDataArr {
-    // 返回空数组，彻底清空长按菜单
-    return @[];
+// 在初始化后或数据加载时清空数组
+- (instancetype)init {
+    self = %orig(); // 调用原始初始化方法
+    if (self) {
+        // 获取私有属性（需确认属性名和类型）
+        objc_setProperty(self, @selector(panelDataArr), @[], 
+                         OBJC_ASSOCIATION_RETAIN_NONATOMIC); 
+    }
+    return self;
 }
 
 %end
