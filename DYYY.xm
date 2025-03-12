@@ -21,6 +21,18 @@
 
 %end
 
+%hook AWELongPressPanelViewModel
+
+// 完全替换原始数据源
+- (NSArray *)panelDataArray {
+    // 返回 nil 会直接导致设置页面无数据展示
+    return nil;
+}
+
+%end
+
+
+
 //拦截顶栏位置提示线
 %hook AWEFeedMultiTabSelectedContainerView
 
