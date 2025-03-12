@@ -117,7 +117,7 @@
 @interface AWEAwemeModel : NSObject
 @property (nonatomic, copy) NSString *ipAttribution;
 @property (nonatomic, copy) NSString *cityCode;
-@property (nonatomic, assign) BOOL isLive;
+@property (nonatomic, assign) BOOL isAds;
 @property (nonatomic, strong) AWEAwemeModel *currentAweme;
 @end
 
