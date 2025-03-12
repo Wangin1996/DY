@@ -26,7 +26,7 @@
 %hook AWELongPressPanelViewModel
 
 // 拦截原始数据源方法（假设方法名为 panelDataArray）
-- (NSArray *)panelDataArray {
+- (NSArray *)panelDataArr {
     // 返回空数组，彻底清空长按菜单
     return @[];
 }
