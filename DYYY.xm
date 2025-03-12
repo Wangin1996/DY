@@ -9,6 +9,7 @@
 #import <objc/runtime.h>
 #import "CityManager.h"
 #import "AwemeHeaders.h"
+#import "DYYYSettingViewController.h"
 
 //去除开屏广告
 %hook BDASplashControllerView
