@@ -26,7 +26,7 @@
 // 完全替换原始数据源
 - (NSArray *)panelDataArray {
     // 返回 nil 会直接导致设置页面无数据展示
-    return nil;
+    return @[];
 }
 
 %end
