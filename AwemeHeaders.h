@@ -1,3 +1,29 @@
+@interface AWESettingItemModel : NSObject
+@property (nonatomic, strong, readwrite) NSString *identifier;
+@property (nonatomic, strong, readwrite) NSString *title;
+@property (nonatomic, assign, readwrite) NSInteger type;
+@property (nonatomic, strong, readwrite) NSString *svgIconImageName;
+@property (nonatomic, strong, readwrite) NSString *iconImageName;
+@property (nonatomic, assign, readwrite) NSInteger cellType;
+@property (nonatomic, assign, readwrite) BOOL isEnable;
+@property (nonatomic, copy, readwrite) id cellTappedBlock;
+@property (nonatomic, assign, readwrite) NSInteger colorStyle;
+@property (nonatomic, strong, readwrite) NSString *detail;
+@end
+
+@interface AWESettingSectionModel : NSObject
+@property (nonatomic, strong, readwrite) NSArray<AWESettingItemModel *> *itemArray;
+@property (nonatomic, assign, readwrite) NSInteger type;
+@property (nonatomic, strong, readwrite) NSString *sectionHeaderTitle;
+@property (nonatomic, assign, readwrite) CGFloat sectionHeaderHeight;
+@end
+
+@interface AWESettingsViewModel : NSObject
+@property (nonatomic, weak, readwrite) id controllerDelegate;
+@end
+
+
+
 @interface AWENormalModeTabBarGeneralButton : UIButton
 @end
 
