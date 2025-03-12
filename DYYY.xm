@@ -27,29 +27,30 @@
 @end
 
 %hook AWEFeedContainerViewController
-
-// 在视图显示后操作子视图
 - (void)viewDidAppear:(BOOL)animated {
-    %orig; // 调用原始方法
+    %orig;
     
-    // 获取 AWEFeedTopBarContainer 实例（假设它是控制器的直接子视图）
-    UIView *topBarContainer = nil;
-    for (UIView *subview in self.view.subviews) {
-        if ([subview isKindOfClass:NSClassFromString(@"AWEFeedTopBarContainer")]) {
-            topBarContainer = subview;
-            break;
-        }
-    }
-    
-    // 修改第一个子视图的 alpha
+    // 递归查找 AWEFeedTopBarContainer
+    UIView *topBarContainer = [self findTopBarContainerInView:self.view];
     if (topBarContainer && topBarContainer.subviews.count > 0) {
         UIView *firstSubview = topBarContainer.subviews[0];
         dispatch_async(dispatch_get_main_queue(), ^{
-            firstSubview.alpha = 0; // 设置透明度为0
+            firstSubview.alpha = 0;
         });
     }
 }
 
+// 递归查找方法
+- (UIView *)findTopBarContainerInView:(UIView *)view {
+    for (UIView *subview in view.subviews) {
+        if ([subview isKindOfClass:NSClassFromString(@"AWEFeedTopBarContainer")]) {
+            return subview;
+        }
+        UIView *result = [self findTopBarContainerInView:subview];
+        if (result) return result;
+    }
+    return nil;
+}
 %end
 
 
