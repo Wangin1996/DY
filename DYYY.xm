@@ -21,18 +21,14 @@
 
 %end
 
-%hook AWELongPressPanelViewModel
+%hook AWELongPressPanelViewGroupModel
 
-- (NSArray *)panelDataArr {
+- (NSArray *)groupArr {
     NSArray *originalpanel = %orig; // 获取原始数据
     
     // 创建新菜单项（确保字段与系统兼容）
     NSDictionary *newMenuItem = @{
-        @"title": @"我的新功能",       // 菜单项标题
-        @"description": @"启用我的自定义功能", // 描述文本
-        @"type": @"UISwitch",         // 推荐使用系统标准类型（如 UISwitch）
-        @"value": @NO,
-        @"action": @"com.yourplugin.newFeature" // 自定义动作标识
+       
     };
     
     // 将新项插入到数组最前面
