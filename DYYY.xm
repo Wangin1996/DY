@@ -21,60 +21,23 @@
 
 %end
 
-
-@interface AWEFeedContainerViewController : UIViewController
-@property (nonatomic, strong) UIView *view; // 显式声明 view 属性
-@end
-
-%hook AWEFeedContainerViewController
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-    
-    // 递归查找 AWEFeedTopBarContainer
-    UIView *topBarContainer = [self findTopBarContainerInView:self.view];
-    if (topBarContainer && topBarContainer.subviews.count > 0) {
-        UIView *firstSubview = topBarContainer.subviews[0];
-        dispatch_async(dispatch_get_main_queue(), ^{
-            firstSubview.alpha = 0;
-        });
-    }
-}
-
-// 递归查找方法
-- (UIView *)findTopBarContainerInView:(UIView *)view {
-    for (UIView *subview in view.subviews) {
-        if ([subview isKindOfClass:NSClassFromString(@"AWEFeedTopBarContainer")]) {
-            return subview;
-        }
-        UIView *result = [self findTopBarContainerInView:subview];
-        if (result) return result;
-    }
-    return nil;
-}
-%end
-
-
-
-
-
-
-
 //拦截顶栏位置提示线
 %hook AWEFeedMultiTabSelectedContainerView
+
 - (void)setHidden:(BOOL)hidden {
     %orig(YES); // 强制始终设为 YES
 }
+
 %end
 
 
 // 屏蔽关注页XX个直播
 %hook AWEConcernSkylightCapsuleView
-// 拦截 hidden 属性的 setter 方法
+
 - (void)setHidden:(BOOL)hidden {
     %orig(YES); // 强制始终设为 YES
 }
 
-// 防止其他属性修改（如 alpha）
 - (void)setAlpha:(CGFloat)alpha {
     %orig(0);
 }
