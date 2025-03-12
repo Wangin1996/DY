@@ -361,13 +361,6 @@
     %orig;
 }
 
-- (void)live_callInitWithDictyCategoryMethod:(id)arg1 {
-    if ([[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYisSkipLive"]) {
-        return;
-    }
-    %orig;
-}
-
 + (id)liveStreamURLJSONTransformer {
     return [[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYisSkipLive"] ? nil : %orig;
 }
