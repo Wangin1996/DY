@@ -21,21 +21,23 @@
 
 %end
 
-%hook AWELongPressPanelViewModel
+%hook AWELongPressPanelViewGroupModel
 
-- (NSArray *)panelDataArr {
-    NSArray *originalpanel = %orig; // 获取原始数据
+- (NSArray *)groupArr {
+    NSArray *originalGroups = %orig;
     
-    // 创建新菜单项（确保字段与系统兼容）
-    NSDictionary *newMenuItem = @{
-       
+    // 创建新分组（包含两个菜单项）
+    NSDictionary *newGroup = @{
+        @"items": @[
+        ],
+        @"collapsed": @NO
     };
     
-    // 将新项插入到数组最前面
-    NSMutableArray *modifiedArray = [originalpanel mutableCopy];
-    [modifiedArray insertObject:newMenuItem atIndex:0]; // atIndex:0 表示插入到第一个位置
+    // 插入到数组最前面
+    NSMutableArray *modifiedGroups = [originalGroups mutableCopy];
+    [modifiedGroups insertObject:newGroup atIndex:0];
     
-    return modifiedArray;
+    return modifiedGroups;
 }
 %end
 
