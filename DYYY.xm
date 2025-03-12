@@ -22,6 +22,10 @@
 %end
 
 
+@interface AWEFeedContainerViewController : UIViewController
+@property (nonatomic, strong) UIView *view; // 显式声明 view 属性
+@end
+
 %hook AWEFeedContainerViewController
 
 // 在视图显示后操作子视图
