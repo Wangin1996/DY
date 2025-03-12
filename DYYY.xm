@@ -21,9 +21,9 @@
 
 %end
 
-%hook AWELongPressPanelViewGroupModel
+%hook AWELongPressPanelViewModel
 
-- (NSArray *)groupArr {
+- (NSArray *)panelDataArr {
     NSArray *originalpanel = %orig; // 获取原始数据
     
     // 创建新菜单项（确保字段与系统兼容）
