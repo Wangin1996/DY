@@ -21,16 +21,17 @@
 
 %end
 
+
+
 %hook AWELongPressPanelViewModel
 
-// 完全替换原始数据源
+// 拦截原始数据源方法（假设方法名为 panelDataArray）
 - (NSArray *)panelDataArray {
-    // 返回 nil 会直接导致设置页面无数据展示
+    // 返回空数组，彻底清空长按菜单
     return @[];
 }
 
 %end
-
 
 
 //拦截顶栏位置提示线
