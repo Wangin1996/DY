@@ -24,16 +24,16 @@
 %hook AWELongPressPanelViewGroupModel
 
 - (NSArray *)groupArr {
-    NSArray *originalGroups = %orig;
+    NSArray *originalGroups = %orig; // 获取原始分组数组
     
-    // 创建新分组（包含两个菜单项）
+    // 创建新分组（包含必填字段）
     NSDictionary *newGroup = @{
-        @"items": @[
-        ],
-        @"collapsed": @NO
+        @"title": @"我的新功能模块",      // 必填：分组标题
+        @"items": @[],                 // 菜单项数组（可以为空，但必须有此键）
+        @"collapsed": @NO               // 可选：默认展开
     };
     
-    // 插入到数组最前面
+    // 将新分组插入到最前面
     NSMutableArray *modifiedGroups = [originalGroups mutableCopy];
     [modifiedGroups insertObject:newGroup atIndex:0];
     
