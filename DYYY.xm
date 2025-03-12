@@ -21,21 +21,26 @@
 
 %end
 
-
-
 %hook AWELongPressPanelViewModel
 
-// 在初始化后或数据加载时清空数组
-- (instancetype)init {
-    self = %orig(); // 调用原始初始化方法
-    if (self) {
-        // 获取私有属性（需确认属性名和类型）
-        objc_setProperty(self, @selector(panelDataArr), @[], 
-                         OBJC_ASSOCIATION_RETAIN_NONATOMIC); 
-    }
-    return self;
+- (NSArray *)panelDataArr {
+    NSArray *originalpanel = %orig; // 获取原始数据
+    
+    // 创建新菜单项（确保字段与系统兼容）
+    NSDictionary *newMenuItem = @{
+        @"title": @"我的新功能",       // 菜单项标题
+        @"description": @"启用我的自定义功能", // 描述文本
+        @"type": @"UISwitch",         // 推荐使用系统标准类型（如 UISwitch）
+        @"value": @NO,
+        @"action": @"com.yourplugin.newFeature" // 自定义动作标识
+    };
+    
+    // 将新项插入到数组最前面
+    NSMutableArray *modifiedArray = [originalpanel mutableCopy];
+    [modifiedArray insertObject:newMenuItem atIndex:0]; // atIndex:0 表示插入到第一个位置
+    
+    return modifiedArray;
 }
-
 %end
 
 
