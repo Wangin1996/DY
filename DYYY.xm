@@ -10,6 +10,39 @@
 #import "CityManager.h"
 #import "AwemeHeaders.h"
 
+//去除开屏广告
+%hook BDASplashControllerView
+
++ (id)alloc {
+    return nil; // 直接返回空指针，阻止内存分配
+}
+
+
+%end
+
+//拦截顶栏位置提示线
+%hook AWEFeedMultiTabSelectedContainerView
+- (void)setHidden:(BOOL)hidden {
+    %orig(YES); // 强制始终设为 YES
+}
+%end
+
+
+// 屏蔽关注页XX个直播
+%hook AWEConcernSkylightCapsuleView
+// 拦截 hidden 属性的 setter 方法
+- (void)setHidden:(BOOL)hidden {
+    %orig(YES); // 强制始终设为 YES
+}
+
+// 防止其他属性修改（如 alpha）
+- (void)setAlpha:(CGFloat)alpha {
+    %orig(0);
+}
+
+%end
+
+
 %hook AWEAwemePlayVideoViewController
 
 - (void)setIsAutoPlay:(BOOL)arg0 {
@@ -220,70 +253,61 @@
 //}
 //%end
 
-%hook UIWindow
-- (instancetype)initWithFrame:(CGRect)frame {
-    UIWindow *window = %orig(frame);
-    if (window) {
-        UILongPressGestureRecognizer *doubleFingerLongPressGesture = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(handleDoubleFingerLongPressGesture:)];
-        doubleFingerLongPressGesture.numberOfTouchesRequired = 2;
-        [window addGestureRecognizer:doubleFingerLongPressGesture];
-    }
-    return window;
-}
 
-%new
-- (void)handleDoubleFingerLongPressGesture:(UILongPressGestureRecognizer *)gesture {
-    if (gesture.state == UIGestureRecognizerStateBegan) {
-        UIViewController *rootViewController = self.rootViewController;
-        if (rootViewController) {
-            UIViewController *settingVC = [[NSClassFromString(@"DYYYSettingViewController") alloc] init];
-            
-            if (settingVC) {
-                if (@available(iOS 15.0, *) && UIDevice.currentDevice.userInterfaceIdiom != UIUserInterfaceIdiomPad) {
-                    settingVC.modalPresentationStyle = UIModalPresentationPageSheet;
-                } else {
-                    settingVC.modalPresentationStyle = UIModalPresentationFullScreen;
-                    
-                    UIButton *closeButton = [UIButton buttonWithType:UIButtonTypeSystem];
-                    [closeButton setTitle:@"关闭" forState:UIControlStateNormal];
-                    closeButton.translatesAutoresizingMaskIntoConstraints = NO;
-                    
-                    [settingVC.view addSubview:closeButton];
-                    
-                    [NSLayoutConstraint activateConstraints:@[
-                        [closeButton.trailingAnchor constraintEqualToAnchor:settingVC.view.trailingAnchor constant:-10],
-                        [closeButton.topAnchor constraintEqualToAnchor:settingVC.view.topAnchor constant:40],
-                        [closeButton.widthAnchor constraintEqualToConstant:80],
-                        [closeButton.heightAnchor constraintEqualToConstant:40]
-                    ]];
-                    
-                    [closeButton addTarget:self action:@selector(closeSettings:) forControlEvents:UIControlEventTouchUpInside];
-                }
-                
-                UIView *handleBar = [[UIView alloc] init];
-                handleBar.backgroundColor = [UIColor whiteColor];
-                handleBar.layer.cornerRadius = 2.5;
-                handleBar.translatesAutoresizingMaskIntoConstraints = NO;
-                [settingVC.view addSubview:handleBar];
-                
-                [NSLayoutConstraint activateConstraints:@[
-                    [handleBar.centerXAnchor constraintEqualToAnchor:settingVC.view.centerXAnchor],
-                    [handleBar.topAnchor constraintEqualToAnchor:settingVC.view.topAnchor constant:8],
-                    [handleBar.widthAnchor constraintEqualToConstant:40],
-                    [handleBar.heightAnchor constraintEqualToConstant:5]
-                ]];
-                
-                [rootViewController presentViewController:settingVC animated:YES completion:nil];
-            }
+%hook AWESettingsViewModel // Hook 设置视图模型类
+- (NSArray *)sectionDataArray { // 拦截返回设置页面数据源的方法
+    NSArray *originalSections = %orig; // 获取原始设置项数据
+    
+    // 检查是否已存在 DYYY 模块
+    BOOL sectionExists = NO;
+    for (AWESettingSectionModel *section in originalSections) {
+        if ([section.sectionHeaderTitle isEqualToString:@"DYYY"]) {
+            sectionExists = YES;
+            break;
         }
     }
-}
-
-%new
-- (void)closeSettings:(UIButton *)button {
-    [button.superview.window.rootViewController dismissViewControllerAnimated:YES completion:nil];
+    
+    // 如果不存在则创建
+    if (!sectionExists) {
+        // 创建新条目
+        AWESettingItemModel *newItem = [[%c(AWESettingItemModel) alloc] init];
+        newItem.identifier = @"DYYY"; // 唯一标识
+        newItem.title = @"抖音助手"; // 显示标题
+        //newItem.detail = @"2.0"; // 副标题/描述
+        newItem.type = 0; // 条目类型
+        newItem.iconImageName = @"noticesettting_like"; // 图标资源名称
+        newItem.cellType = 26; // 单元格样式类型
+        newItem.colorStyle = 2; // 颜色样式
+        newItem.isEnable = YES; // 是否可交互
+        
+        // 点击事件回调
+        newItem.cellTappedBlock = ^(AWESettingItemModel *item) {
+            UIViewController *rootViewController = self.controllerDelegate;
+            DYYYSettingViewController *dyyyVC = [[DYYYSettingViewController alloc] init];
+            [rootViewController.navigationController pushViewController:dyyyVC animated:YES];
+        };
+        
+        // 创建新分区
+        AWESettingSectionModel *newSection = [[%c(AWESettingSectionModel) alloc] init];
+        newSection.itemArray = @[newItem]; // 包含的条目数组
+        newSection.type = 0; // 分区类型
+        newSection.sectionHeaderHeight = 40; // 分区头部高度
+        newSection.sectionHeaderTitle = @"DYYY"; // 分区标题
+        
+        // 插入到数据源首部
+        NSMutableArray *newSections = [NSMutableArray arrayWithArray:originalSections];
+        [newSections insertObject:newSection atIndex:0];
+        
+        return newSections;
+    }
+    
+    return originalSections;
 }
 %end
+
+
+
+
 
 %hook AWEFeedLiveMarkView
 - (void)setHidden:(BOOL)hidden {
@@ -319,8 +343,25 @@
 
 %hook AWEAwemeModel
 
+- (id)initWithDictionary:(id)arg1 error:(id *)arg2 {
+    id orig = %orig;
+    return self.isAds ? nil : orig; 
+}
+
+- (id)init {
+    id orig = %orig;
+    return self.isAds ? nil : orig;
+}
+
 - (void)live_callInitWithDictyCategoryMethod:(id)arg1 {
-    if (self.currentAweme && [self.currentAweme isLive] && [[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYisSkipLive"]) {
+    if ([[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYisSkipLive"]) {
+        return;
+    }
+    %orig;
+}
+
+- (void)live_callInitWithDictyCategoryMethod:(id)arg1 {
+    if ([[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYisSkipLive"]) {
         return;
     }
     %orig;
@@ -586,14 +627,6 @@
         responder = [responder nextResponder];
     }
     return nil;
-}
-
-%end
-
-%hook AWEAwemeModel
-
-- (void)setIsAds:(BOOL)isAds {
-    %orig(NO);
 }
 
 %end
