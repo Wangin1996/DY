@@ -21,6 +21,39 @@
 
 %end
 
+
+%hook AWEFeedContainerViewController
+
+// 在视图显示后操作子视图
+- (void)viewDidAppear:(BOOL)animated {
+    %orig; // 调用原始方法
+    
+    // 获取 AWEFeedTopBarContainer 实例（假设它是控制器的直接子视图）
+    UIView *topBarContainer = nil;
+    for (UIView *subview in self.view.subviews) {
+        if ([subview isKindOfClass:NSClassFromString(@"AWEFeedTopBarContainer")]) {
+            topBarContainer = subview;
+            break;
+        }
+    }
+    
+    // 修改第一个子视图的 alpha
+    if (topBarContainer && topBarContainer.subviews.count > 0) {
+        UIView *firstSubview = topBarContainer.subviews[0];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            firstSubview.alpha = 0; // 设置透明度为0
+        });
+    }
+}
+
+%end
+
+
+
+
+
+
+
 //拦截顶栏位置提示线
 %hook AWEFeedMultiTabSelectedContainerView
 - (void)setHidden:(BOOL)hidden {
