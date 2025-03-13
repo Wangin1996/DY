@@ -1363,8 +1363,8 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
                         [activityVC setCompletionWithItemsHandler:^(UIActivityType _Nullable activityType, BOOL completed, NSArray * _Nullable returnedItems, NSError * _Nullable error) {
                             [[NSFileManager defaultManager] removeItemAtURL:destinationURL error:nil];
                         }];
-                        UIViewController *topVC = topView();
-                        if (topVC) [topVC presentViewController:activityVC animated:YES completion:nil];
+                        //UIViewController *topVC = topView();
+                        //if (topVC) [topVC presentViewController:activityVC animated:YES completion:nil];
                     });
                 } else {
                     saveMedia(destinationURL, mediaType);
@@ -1412,7 +1412,7 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
     for (NSUInteger i = 0; i < customButtons.count; i++) {
         AWELongPressPanelBaseViewModel *viewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
         viewModel.describeString = customButtons[i];
-        viewModel.enterMethod = DYYY;
+        viewModel.enterMethod = @"DYYY";
         viewModel.actionType = 100 + i;
         viewModel.showIfNeed = YES;
         viewModel.duxIconName = customIcons[i];
