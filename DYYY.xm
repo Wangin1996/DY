@@ -1434,12 +1434,16 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
 }
 
 //长按页面插入无水印下载
+
+#include <Theos/Theos.h> // 引入 Theos 宏定义
+
+
 %hook AWELongPressPanelTableViewController
 - (NSArray *)dataArray {
     NSArray *originalArray = %orig;
     
     // 使用 Theos 的 %c 宏调用 UserDefaults
-    if (![[%c(NSUserDefaults) standardUserDefaults] objectForKey:@"DYYYLongPressDownload"]]) return originalArray;
+    if (![[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYlongpressdownload"]) return originalArray;
 
     AWELongPressPanelViewGroupModel *newGroupModel = [[%c(AWELongPressPanelViewGroupModel) alloc] init];
     newGroupModel.groupType = 0;
@@ -1463,18 +1467,21 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
         viewModel.showIfNeed = YES;
         viewModel.duxIconName = customIcons[i];
         
-        // 使用 %weakref 和 %strongref 处理弱引用
-        %weakref self;
+        // 声明弱引用（必须指定变量名）
+        %weakref weakSelf = %self; 
+        
         viewModel.action = ^{
-            %strongref self;
+            // 转换为强引用（必须指定变量名）
+            %strongref strongSelf = weakSelf;
+            
             dispatch_async(dispatch_get_main_queue(), ^{
-                if (self) {
-                    [self dismissViewControllerAnimated:YES completion:nil];
+                if (strongSelf) { // 避免 nil
+                    [strongSelf dismissViewControllerAnimated:YES completion:nil];
                 }
             });
             
             NSURL *url = nil;
-            switch (viewModel.actionType) {
+            switch (viewModel.actionType) { // 使用 viewModel 而非未声明的 strongViewModel
                 case 100: // 下载视频/图片
                     url = awemeModel.awemeType == 68 
                         ? [NSURL URLWithString:currentImageModel.urlList.firstObject] 
