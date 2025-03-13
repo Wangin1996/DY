@@ -1439,14 +1439,15 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
     NSArray *originalArray = %orig;
     if (![[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYlongpressdownload"]) return originalArray;
     
+    WEAwemeModel *awemeModel = tempViewModel.awemeModel;
     // 判断是否存在多个图片
     BOOL hasMultipleImages = awemeModel.albumImages.count >= 2;
-    
+
+
     AWELongPressPanelViewGroupModel *newGroupModel = [[%c(AWELongPressPanelViewGroupModel) alloc] init];
     newGroupModel.groupType = 0;
     
     AWELongPressPanelBaseViewModel *tempViewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
-    AWEAwemeModel *awemeModel = tempViewModel.awemeModel;
     AWEVideoModel *videoModel = awemeModel.video;
     AWEMusicModel *musicModel = awemeModel.music;
     
