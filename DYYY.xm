@@ -11,6 +11,14 @@
 #import "AwemeHeaders.h"
 #import "DYYYSettingViewController.h"
 
+// 媒体类型枚举
+typedef NS_ENUM(NSUInteger, MediaType) {
+    MediaTypeVideo,
+    MediaTypeImage,
+    MediaTypeAudio
+};
+
+
 //去除开屏广告
 %hook BDASplashControllerView
 
