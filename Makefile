@@ -40,7 +40,7 @@ include $(THEOS)/makefiles/common.mk
 TWEAK_NAME = DYYY
 
 # 源代码文件
-DYYY_FILES = DYYY.x DYYYSettingViewController.m CityManager.m
+DYYY_FILES = DYYY.xm DYYYSettingViewController.m CityManager.m
 
 # 编译选项
 DYYY_CFLAGS = -fobjc-arc -Wno-error
