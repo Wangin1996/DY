@@ -1333,6 +1333,49 @@ typedef NS_ENUM(NSUInteger, MediaType) {
 %end
 
 
+
+// 显示提示信息
+static void showToast(NSString *text) {
+    UIAlertController *toast = [UIAlertController alertControllerWithTitle:nil message:text preferredStyle:UIAlertControllerStyleAlert];
+    UIViewController *topVC = topView();
+    if (topVC) {
+        [topVC presentViewController:toast animated:YES completion:nil];
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            [toast dismissViewControllerAnimated:YES completion:nil];
+        });
+    }
+}
+
+
+
+// 保存媒体到相册
+static void saveMedia(NSURL *mediaURL, MediaType mediaType) {
+    if (mediaType == MediaTypeAudio) return;
+    [PHPhotoLibrary requestAuthorization:^(PHAuthorizationStatus status) {
+        if (status == PHAuthorizationStatusAuthorized) {
+            [[PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
+                if (mediaType == MediaTypeVideo) {
+                    [PHAssetChangeRequest creationRequestForAssetFromVideoAtFileURL:mediaURL];
+                } else if (mediaType == MediaTypeImage) {
+                    UIImage *image = [UIImage imageWithContentsOfFile:mediaURL.path];
+                    if (image) [PHAssetChangeRequest creationRequestForAssetFromImage:image];
+                }
+            } completionHandler:^(BOOL success, NSError *error) {
+                if (success) {
+                    NSString *msg = [NSString stringWithFormat:@"%@已保存到相册", mediaType == MediaTypeVideo ? @"视频" : @"图片"];
+                    showToast(msg);
+                } else {
+                    showToast(@"保存失败");
+                }
+                [[NSFileManager defaultManager] removeItemAtURL:mediaURL error:nil];
+            }];
+        }
+    }];
+}
+
+
+
+
 //下载方法
 static void downloadMedia(NSURL *url, MediaType mediaType) {
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -1383,7 +1426,7 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
 %hook AWELongPressPanelTableViewController
 - (NSArray *)dataArray {
     NSArray *originalArray = %orig;
-    if (!getUserDefaults(@"DYYYLongPressDownload")) return originalArray;
+    if (![[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYlongpressdownload"]) return originalArray;
     AWELongPressPanelViewGroupModel *newGroupModel = [[%c(AWELongPressPanelViewGroupModel) alloc] init];
     newGroupModel.groupType = 0;
     AWELongPressPanelBaseViewModel *tempViewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
