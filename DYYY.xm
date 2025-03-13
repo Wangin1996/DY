@@ -1362,7 +1362,7 @@ typedef NS_ENUM(NSUInteger, MediaType) {
 
 CGPoint topCenter = CGPointMake(
     CGRectGetMidX([UIScreen mainScreen].bounds),
-    CGRectGetMinY([UIScreen mainScreen].bounds) + 40
+    CGRectGetMinY([UIScreen mainScreen].bounds) + 60
 );
 
 void showToast(NSString *text) {
