@@ -1407,11 +1407,6 @@ static void saveMedia(NSURL *mediaURL, MediaType mediaType) {
 
 //下载方法
 static void downloadMedia(NSURL *url, MediaType mediaType) {
-    // 删除以下两行代码（解析中提示）
-    // UIAlertController *loadingAlert = [UIAlertController alertControllerWithTitle:@"解析中..." message:nil preferredStyle:UIAlertControllerStyleAlert];
-    // UIViewController *topVC = topView();
-    // if (topVC) [topVC presentViewController:loadingAlert animated:YES completion:nil];
-
     NSURLSession *session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration]];
     NSURLSessionDownloadTask *downloadTask = [session downloadTaskWithURL:url completionHandler:^(NSURL *location, NSURLResponse *response, NSError *error) {
         if (!error) {
@@ -1429,12 +1424,16 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
             
             // 显示成功提示（保留在主线程）
             dispatch_async(dispatch_get_main_queue(), ^{
-                showToast([NSString stringWithFormat:@"%@已下载", fileName]);
+		UIAlertController *loadingAlert = [UIAlertController alertControllerWithTitle:@"下载成功" message:nil preferredStyle:UIAlertControllerStyleAlert];
+    		UIViewController *topVC = topView();
+     		if (topVC) [topVC presentViewController:loadingAlert animated:YES completion:nil];
             });
         } else {
             // 显示失败提示（保留在主线程）
             dispatch_async(dispatch_get_main_queue(), ^{
-                showToast([NSString stringWithFormat:@"下载失败: %@", error.localizedDescription]);
+		UIAlertController *loadingAlert = [UIAlertController alertControllerWithTitle:@"下载失败" message:nil preferredStyle:UIAlertControllerStyleAlert];
+    		UIViewController *topVC = topView();
+     		if (topVC) [topVC presentViewController:loadingAlert animated:YES completion:nil];
             });
         }
     }];
