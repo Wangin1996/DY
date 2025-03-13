@@ -1364,24 +1364,30 @@ static void showToast(NSString *text) {
                                                                 message:text 
                                                                 preferredStyle:UIAlertControllerStyleAlert];
         
-        // 2. 获取主窗口
-        UIWindow *window = [UIApplication sharedApplication].keyWindow;
+        // 强制布局以获取正确尺寸（关键步骤）
+        [toast.view layoutIfNeeded];
         
-        // 3. 计算位置（屏幕顶部居中）
-        CGFloat screenWidth = window.bounds.size.width;
-        CGFloat screenHeight = window.bounds.size.height;
+        // 2. 获取主窗口并考虑安全区域（适配全面屏）
+        UIWindow *window = [UIApplication sharedApplication].keyWindow;
+        CGFloat safeAreaInsets = window.safeAreaInsets.bottom; // 可根据需要调整其他边距
+        
+        // 3. 动态计算位置（屏幕顶部居中 + 安全区域适配）
+        CGFloat screenWidth = window.bounds.size.width - safeAreaInsets;
+        CGFloat toastWidth = toast.view.bounds.size.width;
+        CGFloat horizontalCenter = (screenWidth - toastWidth) / 2;
+        CGFloat verticalOffset = 60; // 根据导航栏高度调整
+        
         CGRect frame = CGRectMake(
-            (screenWidth - toast.view.bounds.size.width) / 2, // 水平居中
-            60,                                             // 垂直偏移量（例如导航栏高度）
-            toast.view.bounds.size.width,
+            horizontalCenter,
+            verticalOffset + safeAreaInsets, // 垂直位置加入安全区域
+            toastWidth,
             toast.view.bounds.size.height
         );
         
-        // 4. 添加到窗口层级
+        // 4. 添加到窗口并设置自动移除
         toast.view.frame = frame;
         [window addSubview:toast.view];
         
-        // 5. 自动移除（替代 presentViewController）
         __weak UIView *weakToastView = toast.view;
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
             if (weakToastView) {
