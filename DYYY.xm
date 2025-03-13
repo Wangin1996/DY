@@ -1434,89 +1434,52 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
 }
 
 //长按页面插入无水印下载
-
-
-
 %hook AWELongPressPanelTableViewController
-    static BOOL isDownloading = NO; // 全局下载状态标识
-    
-    - (NSArray *)dataArray {
-        NSArray *originalArray = %orig;
-        
-        // 检查下载开关（确保Key名与实际一致）
-	if (![[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYlongpressdownload"]) return originalArray;
-        AWELongPressPanelViewGroupModel *newGroupModel = [[%c(AWELongPressPanelViewGroupModel) alloc] init];
-        newGroupModel.groupType = 0;
-        
-        AWELongPressPanelBaseViewModel *tempViewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
-        AWEAwemeModel *awemeModel = tempViewModel.awemeModel;
-        AWEVideoModel *videoModel = awemeModel.video;
-        AWEMusicModel *musicModel = awemeModel.music;
-        AWEImageAlbumImageModel *currentImageModel = awemeModel.albumImages.count == 1 ? 
-            awemeModel.albumImages.firstObject : 
-            awemeModel.albumImages[awemeModel.currentImageIndex - 1];
-        
-        NSArray *customButtons = awemeModel.awemeType == 68 ? 
-            @[@"下载图片", @"下载音频", @"下载封面"] : 
-            @[@"下载视频", @"下载音频", @"下载封面"];
-        NSArray *customIcons = @[@"ic_star_outlined_12", @"ic_star_outlined_12", @"ic_star_outlined_12"];
-        
-        NSMutableArray *viewModels = [NSMutableArray arrayWithCapacity:customButtons.count];
-        
-        for (NSUInteger i = 0; i < customButtons.count; i++) {
-            AWELongPressPanelBaseViewModel *viewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
-            viewModel.describeString = customButtons[i];
-            viewModel.enterMethod = DYYY;
-            viewModel.actionType = 100 + i;
-            viewModel.showIfNeed = YES;
-            viewModel.duxIconName = customIcons[i];
-            
-            // 使用Theos弱引用宏（关键修复）
-            __weak AWELongPressPanelBaseViewModel *weakViewModel = viewModel; // 使用弱引用
-            
-            viewModel.action = ^{
-                // Theos强引用转换（关键修复）
-                AWELongPressPanelBaseViewModel *strongViewModel = weakViewModel; // 在块内转为强引用
-                
-                // 下载前检查状态（防止重复请求）
-                if (isDownloading) return;
-                isDownloading = YES;
-                
-                dispatch_async(dispatch_get_main_queue(), ^{
-                    if (self) {
-                        [self dismissViewControllerAnimated:YES completion:nil];
-                    }
-                });
-                
-                // 模拟异步下载（实际替换为真实下载逻辑）
-                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)), dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-                    // 下载完成后恢复状态
-                    isDownloading = NO;
-                });
-                
-                // 下载逻辑（根据actionType处理不同资源）
+- (NSArray *)dataArray {
+    NSArray *originalArray = %orig;
+    if (![[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYlongpressdownload"]) return originalArray;
+    AWELongPressPanelViewGroupModel *newGroupModel = [[%c(AWELongPressPanelViewGroupModel) alloc] init];
+    newGroupModel.groupType = 0;
+    AWELongPressPanelBaseViewModel *tempViewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
+    AWEAwemeModel *awemeModel = tempViewModel.awemeModel;
+    AWEVideoModel *videoModel = awemeModel.video;
+    AWEMusicModel *musicModel = awemeModel.music;
+    AWEImageAlbumImageModel *currentImageModel = awemeModel.albumImages.count == 1 ? awemeModel.albumImages.firstObject : awemeModel.albumImages[awemeModel.currentImageIndex - 1];
+    NSArray *customButtons = awemeModel.awemeType == 68 ? @[@"下载图片", @"下载音频"] : @[@"下载视频", @"下载音频",];
+    NSArray *customIcons = @[@"ic_star_outlined_12", @"ic_star_outlined_12", @"ic_star_outlined_12"];
+    NSMutableArray *viewModels = [NSMutableArray arrayWithCapacity:customButtons.count];
+    for (NSUInteger i = 0; i < customButtons.count; i++) {
+        AWELongPressPanelBaseViewModel *viewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
+        viewModel.describeString = customButtons[i];
+        viewModel.enterMethod = DYYY;
+        viewModel.actionType = 100 + i;
+        viewModel.showIfNeed = YES;
+        viewModel.duxIconName = customIcons[i];
+        __weak AWELongPressPanelBaseViewModel *weakViewModel = viewModel; // 使用弱引用
+        viewModel.action = ^{
+            AWELongPressPanelBaseViewModel *strongViewModel = weakViewModel; // 在块内转为强引用
+            if (strongViewModel) {
                 NSURL *url = nil;
                 switch (strongViewModel.actionType) {
-                    case 100: // 图片/视频下载
-                        url = awemeModel.awemeType == 68 ? 
-                            [NSURL URLWithString:currentImageModel.urlList.firstObject] : 
-                            [NSURL URLWithString:videoModel.h264URL.originURLList.firstObject];
-                        downloadMedia(url, awemeModel.awemeType == 68 ? MediaTypeImage : MediaTypeVideo);
+                    case 100:
+                        if (awemeModel.awemeType == 68) {
+                            url = [NSURL URLWithString:currentImageModel.urlList.firstObject];
+                            downloadMedia(url, MediaTypeImage);
+                        } else {
+                            url = [NSURL URLWithString:videoModel.h264URL.originURLList.firstObject];
+                            downloadMedia(url, MediaTypeVideo);
+                        }
                         break;
-                    case 101: // 音频下载
+                    case 101:
                         url = [NSURL URLWithString:musicModel.playURL.originURLList.firstObject];
                         downloadMedia(url, MediaTypeAudio);
                         break;
-                    case 102: // 封面下载
-                        url = [NSURL URLWithString:videoModel.coverURL.originURLList.firstObject];
-                        downloadMedia(url, MediaTypeImage);
-                        break;
                 }
-            };
-            [viewModels addObject:viewModel];
-        }
-        
-        newGroupModel.groupArr = viewModels;
-        return [@[newGroupModel] arrayByAddingObjectsFromArray:originalArray ?: @[]];
+            }
+        };
+        [viewModels addObject:viewModel];
     }
+    newGroupModel.groupArr = viewModels;
+    return [@[newGroupModel] arrayByAddingObjectsFromArray:originalArray ?: @[]];
+}
 %end
