@@ -1400,43 +1400,43 @@ static void saveMedia(NSURL *mediaURL, MediaType mediaType) {
 
 //下载方法
 static void downloadMedia(NSURL *url, MediaType mediaType) {
+    // 1. 防止重复下载
+    if ([self isDownloading]) return;
+    self.isDownloading = YES;
+
     dispatch_async(dispatch_get_main_queue(), ^{
+        // 2. 显示加载提示
         UIAlertController *loadingAlert = [UIAlertController alertControllerWithTitle:@"解析中..." message:nil preferredStyle:UIAlertControllerStyleAlert];
         UIViewController *topVC = topView();
-        if (topVC) [topVC presentViewController:loadingAlert animated:YES completion:nil];
+        [topVC presentViewController:loadingAlert animated:YES completion:nil];
 
+        // 3. 启动下载任务
         NSURLSession *session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration]];
         NSURLSessionDownloadTask *downloadTask = [session downloadTaskWithURL:url completionHandler:^(NSURL *location, NSURLResponse *response, NSError *error) {
             dispatch_async(dispatch_get_main_queue(), ^{
+                // 4. 隐藏加载提示
                 [loadingAlert dismissViewControllerAnimated:YES completion:nil];
-            });
-            if (!error) {
-                NSString *fileName = url.lastPathComponent;
-                if (!fileName.pathExtension.length) {
-                    switch (mediaType) {
-                        case MediaTypeVideo: fileName = [fileName stringByAppendingPathExtension:@"mp4"]; break;
-                        case MediaTypeImage: fileName = [fileName stringByAppendingPathExtension:@"jpg"]; break;
-                        case MediaTypeAudio: fileName = [fileName stringByAppendingPathExtension:@"mp3"]; break;
+
+                if (!error) {
+                    // 5. 处理文件
+                    NSString *fileName = [self getFileNameWithURL:url mediaType:mediaType];
+                    NSURL *destinationURL = [self getDestinationURL:fileName];
+
+                    NSError *moveError = nil;
+                    if ([[NSFileManager defaultManager] moveItemAtURL:location toURL:destinationURL error:&moveError]) {
+                        // 6. 分发处理逻辑
+                        [self handleMediaSaved:destinationURL mediaType:mediaType];
+                    } else {
+                        showToast(@"文件保存失败");
                     }
-                }
-                NSURL *tempDir = [NSURL fileURLWithPath:NSTemporaryDirectory()];
-                NSURL *destinationURL = [tempDir URLByAppendingPathComponent:fileName];
-                [[NSFileManager defaultManager] moveItemAtURL:location toURL:destinationURL error:nil];
-                if (mediaType == MediaTypeAudio) {
-                    dispatch_async(dispatch_get_main_queue(), ^{
-                        UIActivityViewController *activityVC = [[UIActivityViewController alloc] initWithActivityItems:@[destinationURL] applicationActivities:nil];
-                        [activityVC setCompletionWithItemsHandler:^(UIActivityType _Nullable activityType, BOOL completed, NSArray * _Nullable returnedItems, NSError * _Nullable error) {
-                            [[NSFileManager defaultManager] removeItemAtURL:destinationURL error:nil];
-                        }];
-                        UIViewController *topVC = topView();
-                        if (topVC) [topVC presentViewController:activityVC animated:YES completion:nil];
-                    });
                 } else {
-                    saveMedia(destinationURL, mediaType);
+                    // 7. 错误处理
+                    showToast([NSString stringWithFormat:@"下载失败：%@", error.localizedDescription]);
                 }
-            } else {
-                showToast(@"下载失败");
-            }
+
+                // 8. 重置下载状态
+                self.isDownloading = NO;
+            });
         }];
         [downloadTask resume];
     });
