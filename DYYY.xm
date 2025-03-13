@@ -1522,5 +1522,4 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
         newGroupModel.groupArr = viewModels;
         return [@[newGroupModel] arrayByAddingObjectsFromArray:originalArray ?: @[]];
     }
-}
 %end
