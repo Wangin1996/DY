@@ -227,6 +227,8 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) {
             return @"隐藏设置";
         case 3:
             return @"顶栏移除";
+        case 4:
+            return @"增强功能";
         default:
             return @"";
     }
