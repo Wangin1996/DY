@@ -1251,42 +1251,6 @@ typedef NS_ENUM(NSUInteger, MediaType) {
 
 %end
 
-//%ctor {
-//    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-//        NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-//        [defaults registerDefaults:@{@"isShowDYYYAlert": @(NO)}];
-//
-//        if (![defaults boolForKey:@"isShowDYYYAlert"]) {
-//            [defaults setBool:YES forKey:@"isShowDYYYAlert"];
-//            [defaults synchronize];
-//
-//            UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"by @huamidev"
-//                                                                           message:@"仅供学习交流 请在24小时内删除\n弹窗只会显示一次"
-//                                                                    preferredStyle:UIAlertControllerStyleAlert];
-//
-//            UIAlertAction *okAction = [UIAlertAction actionWithTitle:@"确定" style:UIAlertActionStyleDefault handler:nil];
-//            [alert addAction:okAction];
-//
-//            UIAlertAction *goToChannelAction = [UIAlertAction actionWithTitle:@"前往频道" style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
-//                UIApplication *application = [UIApplication sharedApplication];
-//                NSURL *tgTestURL = [NSURL URLWithString:@"tg://"];
-//                NSURL *telegramTestURL = [NSURL URLWithString:@"telegram://"];
-//
-//                if ([application canOpenURL:tgTestURL] || [application canOpenURL:telegramTestURL]) {
-//                    NSURL *tgURL = [NSURL URLWithString:@"tg://resolve?domain=huamidev"];
-//                    [application openURL:tgURL options:@{} completionHandler:nil];
-//                } else {
-//                    NSURL *webURL = [NSURL URLWithString:@"https://t.me/huamidev"];
-//                    [application openURL:webURL options:@{} completionHandler:nil];
-//                }
-//            }];
-//            [alert addAction:goToChannelAction];
-//
-//            UIWindow *keyWindow = [UIApplication sharedApplication].keyWindow;
-//            [keyWindow.rootViewController presentViewController:alert animated:YES completion:nil];
-//        }
-//    });
-//}
 
 %hook AWEHPDiscoverFeedEntranceView
 - (void)setAlpha:(CGFloat)alpha {
@@ -1437,7 +1401,7 @@ static void saveMedia(NSURL *mediaURL, MediaType mediaType) {
 //下载方法
 static void downloadMedia(NSURL *url, MediaType mediaType) {
     dispatch_async(dispatch_get_main_queue(), ^{
-        UIAlertController *loadingAlert = [UIAlertController alertControllerWithTitle:@"解析中..." message:nil preferredStyle:UIAlertControllerStyleAlert];
+        //UIAlertController *loadingAlert = [UIAlertController alertControllerWithTitle:@"解析中..." message:nil preferredStyle:UIAlertControllerStyleAlert];
         UIViewController *topVC = topView();
         if (topVC) [topVC presentViewController:loadingAlert animated:YES completion:nil];
 
@@ -1492,7 +1456,7 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
     AWEVideoModel *videoModel = awemeModel.video;
     AWEMusicModel *musicModel = awemeModel.music;
     AWEImageAlbumImageModel *currentImageModel = awemeModel.albumImages.count == 1 ? awemeModel.albumImages.firstObject : awemeModel.albumImages[awemeModel.currentImageIndex - 1];
-    NSArray *customButtons = awemeModel.awemeType == 68 ? @[@"下载图片", @"下载音频", @"下载封面"] : @[@"下载视频", @"下载音频", @"下载封面"];
+    NSArray *customButtons = awemeModel.awemeType == 68 ? @[@"下载图片", @"下载音频"] : @[@"下载视频", @"下载音频",];
     NSArray *customIcons = @[@"ic_star_outlined_12", @"ic_star_outlined_12", @"ic_star_outlined_12"];
     NSMutableArray *viewModels = [NSMutableArray arrayWithCapacity:customButtons.count];
     for (NSUInteger i = 0; i < customButtons.count; i++) {
@@ -1513,8 +1477,20 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
                             url = [NSURL URLWithString:currentImageModel.urlList.firstObject];
                             downloadMedia(url, MediaTypeImage);
                         } else {
-                            url = [NSURL URLWithString:videoModel.h264URL.originURLList.firstObject];
-                            downloadMedia(url, MediaTypeVideo);
+                            // 获取视频源URL列表
+                            NSArray<NSURL *> *urlList = videoModel.h264URL.originURLList;
+
+                            // 安全获取第二个元素（索引1）
+                            NSURL *videoURL = nil;
+                            if (urlList.count >= 2) {
+                                videoURL = urlList[1];
+                            } else {
+                                // 错误处理：数组长度不足时返回第一个元素或空值
+                                videoURL = urlList.firstObject ?: [NSURL URLWithString:@""];
+                            }
+
+                            // 使用videoURL进行下载
+                            downloadMedia(videoURL, MediaTypeVideo);
                         }
                         break;
                     case 101:
