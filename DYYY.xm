@@ -1401,7 +1401,7 @@ static void saveMedia(NSURL *mediaURL, MediaType mediaType) {
 //下载方法
 static void downloadMedia(NSURL *url, MediaType mediaType) {
     dispatch_async(dispatch_get_main_queue(), ^{
-        //UIAlertController *loadingAlert = [UIAlertController alertControllerWithTitle:@"解析中..." message:nil preferredStyle:UIAlertControllerStyleAlert];
+        UIAlertController *loadingAlert = [UIAlertController alertControllerWithTitle:@"解析中..." message:nil preferredStyle:UIAlertControllerStyleAlert];
         UIViewController *topVC = topView();
         if (topVC) [topVC presentViewController:loadingAlert animated:YES completion:nil];
 
