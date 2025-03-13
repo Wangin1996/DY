@@ -1435,7 +1435,6 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
 
 //长按页面插入无水印下载
 
-#include <Theos/Theos.h> // 引入 Theos 宏定义
 
 
 %hook AWELongPressPanelTableViewController
