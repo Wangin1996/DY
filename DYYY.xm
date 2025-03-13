@@ -1396,18 +1396,10 @@ static void saveMedia(NSURL *mediaURL, MediaType mediaType) {
 
 
 
-//下载方法
 static void downloadMedia(NSURL *url, MediaType mediaType) {
     dispatch_async(dispatch_get_main_queue(), ^{
-        UIAlertController *loadingAlert = [UIAlertController alertControllerWithTitle:@"解析中..." message:nil preferredStyle:UIAlertControllerStyleAlert];
-        UIViewController *topVC = topView();
-        if (topVC) [topVC presentViewController:loadingAlert animated:YES completion:nil];
-
         NSURLSession *session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration]];
         NSURLSessionDownloadTask *downloadTask = [session downloadTaskWithURL:url completionHandler:^(NSURL *location, NSURLResponse *response, NSError *error) {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                [loadingAlert dismissViewControllerAnimated:YES completion:nil];
-            });
             if (!error) {
                 NSString *fileName = url.lastPathComponent;
                 if (!fileName.pathExtension.length) {
@@ -1432,6 +1424,7 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
                 } else {
                     saveMedia(destinationURL, mediaType);
                 }
+                showToast(@"下载完成");
             } else {
                 showToast(@"下载失败");
             }
