@@ -28,6 +28,7 @@ TWEAK_NAME = DYYY
 DYYY_FILES = DYYY.xm DYYYSettingViewController.m CityManager.m
 DYYY_CFLAGS = -fobjc-arc -Wno-error
 DYYY_LOGOS_DEFAULT_GENERATOR = internal
+CXXFLAGS += -std=c++11
 
 export THEOS_STRICT_LOGOS=0
 export ERROR_ON_WARNINGS=0
