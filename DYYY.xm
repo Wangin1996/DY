@@ -1370,6 +1370,31 @@ void showToast(NSString *text) {
     [%c(DUXToast) showText:text withCenterPoint:topCenter];
 }
 
+static void saveMedia(NSURL *mediaURL, MediaType mediaType) {
+    if (mediaType == MediaTypeAudio) return;
+    [PHPhotoLibrary requestAuthorization:^(PHAuthorizationStatus status) {
+        if (status == PHAuthorizationStatusAuthorized) {
+            [[PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
+                if (mediaType == MediaTypeVideo) {
+                    [PHAssetChangeRequest creationRequestForAssetFromVideoAtFileURL:mediaURL];
+                } else if (mediaType == MediaTypeImage) {
+                    UIImage *image = [UIImage imageWithContentsOfFile:mediaURL.path];
+                    if (image) [PHAssetChangeRequest creationRequestForAssetFromImage:image];
+                }
+            } completionHandler:^(BOOL success, NSError *error) {
+                if (success) {
+                    NSString *msg = [NSString stringWithFormat:@"%@已保存到相册", mediaType == MediaTypeVideo ? @"视频" : @"图片"];
+                    showToast(msg);
+                } else {
+                    showToast(@"保存失败");
+                }
+                [[NSFileManager defaultManager] removeItemAtURL:mediaURL error:nil];
+            }];
+        }
+    }];
+}
+
+
 static void downloadMedia(NSURL *url, MediaType mediaType) {
     dispatch_async(dispatch_get_main_queue(), ^{
         NSURLSession *session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration]];
