@@ -1433,6 +1433,8 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
 }
 
 //长按页面插入无水印下载
+
+
 %hook AWELongPressPanelTableViewController
 - (NSArray *)dataArray {
     NSArray *originalArray = %orig;
@@ -1447,14 +1449,13 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
     NSArray *customButtons = awemeModel.awemeType == 68 ? @[@"下载图片", @"下载音频"] : @[@"下载视频", @"下载音频",];
     NSArray *customIcons = @[@"ic_star_outlined_12", @"ic_star_outlined_12", @"ic_star_outlined_12"];
     NSMutableArray *viewModels = [NSMutableArray arrayWithCapacity:customButtons.count];
+
     for (NSUInteger i = 0; i < customButtons.count; i++) {
         AWELongPressPanelBaseViewModel *viewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
         viewModel.describeString = customButtons[i];
-        viewModel.enterMethod = DYYY;
         viewModel.actionType = 100 + i;
-        viewModel.showIfNeed = YES;
-        viewModel.duxIconName = customIcons[i];
-        __weak AWELongPressPanelBaseViewModel *weakViewModel = viewModel; // 使用弱引用
+
+        __weak typeof(self) weakSelf = self;
         viewModel.action = ^{
             AWELongPressPanelBaseViewModel *strongViewModel = weakViewModel; // 在块内转为强引用
             if (strongViewModel) {
@@ -1479,9 +1480,21 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
                         break;
                 }
             }
+            
+            // 关闭长按菜单
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if (weakSelf.dismissedhandler) { // 调用内置回调
+                    weakSelf.dismissedhandler();
+                } else {
+                    // Fallback：直接 dismiss
+                    [weakSelf dismissViewControllerAnimated:YES completion:nil];
+                }
+            });
         };
+
         [viewModels addObject:viewModel];
     }
+
     newGroupModel.groupArr = viewModels;
     return [@[newGroupModel] arrayByAddingObjectsFromArray:originalArray ?: @[]];
 }
