@@ -9,19 +9,25 @@
 TARGET = iphone:clang:latest:15.0
 ARCHS = arm64 arm64e
 
-#export THEOS=/Users/huami/theos
-#export THEOS_PACKAGE_SCHEME=roothide
+# 强制使用 Clang 编译器
+export CC = clang
+export CXX = clang++
 
-ifeq ($(SCHEME),roothide)
-    export THEOS_PACKAGE_SCHEME = roothide
-else ifeq ($(SCHEME),rootless)
-    export THEOS_PACKAGE_SCHEME = rootless
-endif
+# 设置 C/C++ 标准
+CFLAGS += -std=c++11 -fobjc-arc -Wno-error
+CXXFLAGS += -std=c++11 -lstdc++  # 关键：显式链接 C++11 标准库
 
-export DEBUG = 0
-INSTALL_TARGET_PROCESSES = Aweme
+TWEAK_NAME = DYYY
+
+DYYY_FILES = DYYY.xm DYYYSettingViewController.m CityManager.m
+DYYY_CFLAGS = -fobjc-arc -Wno-error
+
+# 禁用 Theos 默认的编译器优化（可选）
+THEOS_CFLAGS += -std=c++11
+THEOS_CXXFLAGS += -std=c++11 -lstdc++
 
 include $(THEOS)/makefiles/common.mk
+
 
 TWEAK_NAME = DYYY
 
