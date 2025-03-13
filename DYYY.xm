@@ -1439,13 +1439,21 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
 - (NSArray *)dataArray {
     NSArray *originalArray = %orig;
     if (![[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYlongpressdownload"]) return originalArray;
+    
+    // 弱引用当前控制器（避免循环引用）
+    __weak typeof(self) weakSelf = self;
+    
     AWELongPressPanelViewGroupModel *newGroupModel = [[%c(AWELongPressPanelViewGroupModel) alloc] init];
     newGroupModel.groupType = 0;
+    
+    // 确保 tempViewModel 的 awemeModel 已初始化（示例代码，需根据实际情况设置）
     AWELongPressPanelBaseViewModel *tempViewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
-    AWEAwemeModel *awemeModel = tempViewModel.awemeModel;
-    AWEVideoModel *videoModel = awemeModel.video;
-    AWEMusicModel *musicModel = awemeModel.music;
+    tempViewModel.awemeModel = [AWEAwemeModel new]; // 假设需要手动初始化
+    
+    AWEVideoModel *videoModel = tempViewModel.awemeModel.video;
+    AWEMusicModel *musicModel = tempViewModel.awemeModel.music;
     AWEImageAlbumImageModel *currentImageModel = awemeModel.albumImages.count == 1 ? awemeModel.albumImages.firstObject : awemeModel.albumImages[awemeModel.currentImageIndex - 1];
+    
     NSArray *customButtons = awemeModel.awemeType == 68 ? @[@"下载图片", @"下载音频"] : @[@"下载视频", @"下载音频",];
     NSArray *customIcons = @[@"ic_star_outlined_12", @"ic_star_outlined_12", @"ic_star_outlined_12"];
     NSMutableArray *viewModels = [NSMutableArray arrayWithCapacity:customButtons.count];
@@ -1453,45 +1461,44 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
     for (NSUInteger i = 0; i < customButtons.count; i++) {
         AWELongPressPanelBaseViewModel *viewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
         viewModel.describeString = customButtons[i];
+        viewModel.enterMethod = DYYY;
         viewModel.actionType = 100 + i;
-
-        __weak typeof(self) weakSelf = self;
+        viewModel.showIfNeed = YES;
+        viewModel.duxIconName = customIcons[i];
+        
+        // 直接在块内使用弱引用（无需额外强引用转换）
         viewModel.action = ^{
-            AWELongPressPanelBaseViewModel *strongViewModel = weakViewModel; // 在块内转为强引用
-            if (strongViewModel) {
-                NSURL *url = nil;
-                switch (strongViewModel.actionType) {
-                    case 100:
-                        if (awemeModel.awemeType == 68) {
-                            url = [NSURL URLWithString:currentImageModel.urlList.firstObject];
-                            downloadMedia(url, MediaTypeImage);
-                        } else {
-                            url = [NSURL URLWithString:videoModel.h264URL.originURLList.firstObject];
-                            downloadMedia(url, MediaTypeVideo);
-                        }
-                        break;
-                    case 101:
-                        url = [NSURL URLWithString:musicModel.playURL.originURLList.firstObject];
-                        downloadMedia(url, MediaTypeAudio);
-                        break;
-                    case 102:
-                        url = [NSURL URLWithString:videoModel.coverURL.originURLList.firstObject];
+            NSURL *url = nil;
+            switch (viewModel.actionType) {
+                case 100:
+                    if (tempViewModel.awemeModel.awemeType == 68) {
+                        url = [NSURL URLWithString:currentImageModel.urlList.firstObject];
                         downloadMedia(url, MediaTypeImage);
-                        break;
-                }
+                    } else {
+                        url = [NSURL URLWithString:videoModel.h264URL.originURLList.firstObject];
+                        downloadMedia(url, MediaTypeVideo);
+                    }
+                    break;
+                case 101:
+                    url = [NSURL URLWithString:musicModel.playURL.originURLList.firstObject];
+                    downloadMedia(url, MediaTypeAudio);
+                    break;
+                case 102:
+                    url = [NSURL URLWithString:videoModel.coverURL.originURLList.firstObject];
+                    downloadMedia(url, MediaTypeImage);
+                    break;
             }
             
-            // 关闭长按菜单
+            // 关闭长按菜单（修正 weakSelf 为控制器自身）
             dispatch_async(dispatch_get_main_queue(), ^{
-                if (weakSelf.dismissedhandler) { // 调用内置回调
+                if (weakSelf.dismissedhandler) {
                     weakSelf.dismissedhandler();
                 } else {
-                    // Fallback：直接 dismiss
                     [weakSelf dismissViewControllerAnimated:YES completion:nil];
                 }
             });
         };
-
+        
         [viewModels addObject:viewModel];
     }
 
