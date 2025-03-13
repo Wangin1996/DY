@@ -13,6 +13,61 @@
 #import <Photos/Photos.h>
 
 
+#define DYYY @"抖音DYYY"
+
+// 获取顶级视图控制器
+static UIViewController *getActiveTopViewController() {
+    UIWindowScene *activeScene = nil;
+    for (UIWindowScene *scene in [UIApplication sharedApplication].connectedScenes) {
+        if (scene.activationState == UISceneActivationStateForegroundActive) {
+            activeScene = scene;
+            break;
+        }
+    }
+    if (!activeScene) {
+        for (id scene in [UIApplication sharedApplication].connectedScenes) {
+            if ([scene isKindOfClass:[UIWindowScene class]]) {
+                activeScene = (UIWindowScene *)scene;
+                break;
+            }
+        }
+    }
+    if (!activeScene) return nil;
+    UIWindow *window = activeScene.windows.firstObject;
+    UIViewController *topController = window.rootViewController;
+    while (topController.presentedViewController) {
+        topController = topController.presentedViewController;
+    }
+    return topController;
+}
+
+// 获取最上层视图控制器
+static UIViewController *topView(void) {
+    UIWindow *window = nil;
+    for (UIWindowScene *scene in [UIApplication sharedApplication].connectedScenes) {
+        if (scene.activationState == UISceneActivationStateForegroundActive) {
+            window = scene.windows.firstObject;
+            break;
+        }
+    }
+    if (!window) {
+        for (UIWindowScene *scene in [UIApplication sharedApplication].connectedScenes) {
+            if ([scene isKindOfClass:[UIWindowScene class]]) {
+                window = scene.windows.firstObject;
+                break;
+            }
+        }
+    }
+    if (!window) return nil;
+    UIViewController *rootVC = window.rootViewController;
+    while (rootVC.presentedViewController) {
+        rootVC = rootVC.presentedViewController;
+    }
+    if ([rootVC isKindOfClass:[UINavigationController class]]) {
+        return ((UINavigationController *)rootVC).topViewController;
+    }
+    return rootVC;
+}
 
 // 媒体类型枚举
 typedef NS_ENUM(NSUInteger, MediaType) {
@@ -1363,8 +1418,8 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
                         [activityVC setCompletionWithItemsHandler:^(UIActivityType _Nullable activityType, BOOL completed, NSArray * _Nullable returnedItems, NSError * _Nullable error) {
                             [[NSFileManager defaultManager] removeItemAtURL:destinationURL error:nil];
                         }];
-                        //UIViewController *topVC = topView();
-                        //if (topVC) [topVC presentViewController:activityVC animated:YES completion:nil];
+                        UIViewController *topVC = topView();
+                        if (topVC) [topVC presentViewController:activityVC animated:YES completion:nil];
                     });
                 } else {
                     saveMedia(destinationURL, mediaType);
@@ -1412,7 +1467,7 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
     for (NSUInteger i = 0; i < customButtons.count; i++) {
         AWELongPressPanelBaseViewModel *viewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
         viewModel.describeString = customButtons[i];
-        viewModel.enterMethod = @"DYYY";
+        viewModel.enterMethod = DYYY;
         viewModel.actionType = 100 + i;
         viewModel.showIfNeed = YES;
         viewModel.duxIconName = customIcons[i];
