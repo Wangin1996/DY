@@ -1439,19 +1439,16 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
     NSArray *originalArray = %orig;
     if (![[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYlongpressdownload"]) return originalArray;
     
-    AWEAwemeModel *awemeModel = tempViewModel.awemeModel;
-    // 判断是否存在多个图片
-    BOOL hasMultipleImages = awemeModel.albumImages.count >= 2;
-
-
     AWELongPressPanelViewGroupModel *newGroupModel = [[%c(AWELongPressPanelViewGroupModel) alloc] init];
     newGroupModel.groupType = 0;
-    
     AWELongPressPanelBaseViewModel *tempViewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
+    AWEAwemeModel *awemeModel = tempViewModel.awemeModel;
     AWEVideoModel *videoModel = awemeModel.video;
     AWEMusicModel *musicModel = awemeModel.music;
     AWEImageAlbumImageModel *currentImageModel = awemeModel.albumImages.count == 1 ? awemeModel.albumImages.firstObject : awemeModel.albumImages[awemeModel.currentImageIndex - 1];
-    
+    // 判断是否存在多个图片
+    BOOL hasMultipleImages = awemeModel.albumImages.count >= 2;
+
     // 初始化按钮数组（修复此处错误）
     NSArray *customButtons = @[];  // 改为初始化空数组
     NSArray *customIcons = @[];
