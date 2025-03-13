@@ -1359,21 +1359,35 @@ typedef NS_ENUM(NSUInteger, MediaType) {
 // 显示提示信息（优化版）
 static void showToast(NSString *text) {
     dispatch_async(dispatch_get_main_queue(), ^{
+        // 1. 创建提示框
         UIAlertController *toast = [UIAlertController alertControllerWithTitle:nil 
                                                                 message:text 
                                                                 preferredStyle:UIAlertControllerStyleAlert];
-        UIViewController *topVC = topView(); // 确保在主线程获取 topVC
-        if (topVC) {
-            [topVC presentViewController:toast animated:YES completion:nil];
-            
-            // 使用自动释放代替 dispatch_after（更安全）
-            __weak UIAlertController *weakToast = toast;
-            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                if (weakToast) {
-                    [weakToast dismissViewControllerAnimated:YES completion:nil];
-                }
-            });
-        }
+        
+        // 2. 获取主窗口
+        UIWindow *window = [UIApplication sharedApplication].keyWindow;
+        
+        // 3. 计算位置（屏幕顶部居中）
+        CGFloat screenWidth = window.bounds.size.width;
+        CGFloat screenHeight = window.bounds.size.height;
+        CGRect frame = CGRectMake(
+            (screenWidth - toast.view.bounds.size.width) / 2, // 水平居中
+            60,                                             // 垂直偏移量（例如导航栏高度）
+            toast.view.bounds.size.width,
+            toast.view.bounds.size.height
+        );
+        
+        // 4. 添加到窗口层级
+        toast.view.frame = frame;
+        [window addSubview:toast.view];
+        
+        // 5. 自动移除（替代 presentViewController）
+        __weak UIView *weakToastView = toast.view;
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            if (weakToastView) {
+                [weakToastView removeFromSuperview];
+            }
+        });
     });
 }
 
