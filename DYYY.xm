@@ -1356,14 +1356,13 @@ typedef NS_ENUM(NSUInteger, MediaType) {
 
 
 
-// 显示提示信息（优化版）
 // 显示提示信息
 static void showToast(NSString *text) {
     UIAlertController *toast = [UIAlertController alertControllerWithTitle:nil message:text preferredStyle:UIAlertControllerStyleAlert];
     UIViewController *topVC = topView();
     if (topVC) {
         [topVC presentViewController:toast animated:YES completion:nil];
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
             [toast dismissViewControllerAnimated:YES completion:nil];
         });
     }
@@ -1399,27 +1398,46 @@ static void saveMedia(NSURL *mediaURL, MediaType mediaType) {
 
 //下载方法
 static void downloadMedia(NSURL *url, MediaType mediaType) {
-    NSURLSession *session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration]];
-    NSURLSessionDownloadTask *downloadTask = [session downloadTaskWithURL:url completionHandler:^(NSURL *location, NSURLResponse *response, NSError *error) {
-        if (!error) {
-            NSString *fileName = url.lastPathComponent;
-            if (!fileName.pathExtension.length) {
-                switch (mediaType) {
-                    case MediaTypeVideo: fileName = [fileName stringByAppendingPathExtension:@"mp4"]; break;
-                    case MediaTypeImage: fileName = [fileName stringByAppendingPathExtension:@"jpg"]; break;
-                    case MediaTypeAudio: fileName = [fileName stringByAppendingPathExtension:@"mp3"]; break;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIAlertController *loadingAlert = [UIAlertController alertControllerWithTitle:@"解析中..." message:nil preferredStyle:UIAlertControllerStyleAlert];
+        UIViewController *topVC = topView();
+        if (topVC) [topVC presentViewController:loadingAlert animated:YES completion:nil];
+
+        NSURLSession *session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration]];
+        NSURLSessionDownloadTask *downloadTask = [session downloadTaskWithURL:url completionHandler:^(NSURL *location, NSURLResponse *response, NSError *error) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [loadingAlert dismissViewControllerAnimated:YES completion:nil];
+            });
+            if (!error) {
+                NSString *fileName = url.lastPathComponent;
+                if (!fileName.pathExtension.length) {
+                    switch (mediaType) {
+                        case MediaTypeVideo: fileName = [fileName stringByAppendingPathExtension:@"mp4"]; break;
+                        case MediaTypeImage: fileName = [fileName stringByAppendingPathExtension:@"jpg"]; break;
+                        case MediaTypeAudio: fileName = [fileName stringByAppendingPathExtension:@"mp3"]; break;
+                    }
                 }
+                NSURL *tempDir = [NSURL fileURLWithPath:NSTemporaryDirectory()];
+                NSURL *destinationURL = [tempDir URLByAppendingPathComponent:fileName];
+                [[NSFileManager defaultManager] moveItemAtURL:location toURL:destinationURL error:nil];
+                if (mediaType == MediaTypeAudio) {
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        UIActivityViewController *activityVC = [[UIActivityViewController alloc] initWithActivityItems:@[destinationURL] applicationActivities:nil];
+                        [activityVC setCompletionWithItemsHandler:^(UIActivityType _Nullable activityType, BOOL completed, NSArray * _Nullable returnedItems, NSError * _Nullable error) {
+                            [[NSFileManager defaultManager] removeItemAtURL:destinationURL error:nil];
+                        }];
+                        UIViewController *topVC = topView();
+                        if (topVC) [topVC presentViewController:activityVC animated:YES completion:nil];
+                    });
+                } else {
+                    saveMedia(destinationURL, mediaType);
+                }
+            } else {
+                showToast(@"下载失败");
             }
-            NSURL *tempDir = [NSURL fileURLWithPath:NSTemporaryDirectory()];
-            NSURL *destinationURL = [tempDir URLByAppendingPathComponent:fileName];
-            [[NSFileManager defaultManager] moveItemAtURL:location toURL:destinationURL error:nil];
-            
-            showToast(@"下载成功");
-        } else {
-	    showToast(@"下载失败");
-        }
-    }];
-    [downloadTask resume];
+        }];
+        [downloadTask resume];
+    });
 }
 
 
