@@ -1360,14 +1360,6 @@ typedef NS_ENUM(NSUInteger, MediaType) {
 + (void)showText:(id)arg1;
 @end
 
-@interface AWEProgressLoadingView : UIView
-- (id)initWithType:(NSInteger)arg1 title:(NSString *)arg2;
-- (id)initWithType:(NSInteger)arg1 title:(NSString *)arg2 progressTextFont:(UIFont *)arg3 progressCircleWidth:(NSNumber *)arg4;
-- (void)dismissWithAnimated:(BOOL)arg1;
-- (void)dismissAnimated:(BOOL)arg1;
-- (void)showOnView:(id)arg1 animated:(BOOL)arg2;
-- (void)showOnView:(id)arg1 animated:(BOOL)arg2 afterDelay:(CGFloat)arg3;
-@end
 
 void showToast(NSString *text) {
     [%c(DUXToast) showText:text];
@@ -1397,12 +1389,12 @@ static void saveMedia(NSURL *mediaURL, MediaType mediaType) {
     }];
 }
 
-// 下载入口方法（主线程调用）
 static void downloadMedia(NSURL *url, MediaType mediaType) {
+    // 1. 后台线程初始化下载任务（避免阻塞主线程）
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        [[Downloader sharedDownloader] downloadMedia:url 
-                                             mediaType:mediaType 
-                                         completion:^(NSURL *location, NSError *error) {
+        NSURLSession *session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration.defaultSessionConfiguration]];
+        NSURLSessionDownloadTask *downloadTask = [session downloadTaskWithURL:url completionHandler:^(NSURL *location, NSURLResponse *response, NSError *error) {
+            // 2. 下载完成后统一回到主线程处理 UI
             dispatch_async(dispatch_get_main_queue(), ^{
                 if (!error) {
                     [self handleDownloadSuccess:url location:location mediaType:mediaType];
@@ -1411,43 +1403,32 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
                 }
             });
         }];
+        [downloadTask resume];
     });
 }
 
-// MARK: - 下载成功处理
+// MARK: - 下载成功处理（主线程）
 - (void)handleDownloadSuccess:(NSURL *)url location:(NSURL *)location mediaType:(MediaType)mediaType {
-    NSURL *destinationURL = [NSTemporaryDirectory().URL appendingPathComponent:url.lastPathComponentWithExtensionForMediaType:mediaType];
+    // 文件名生成（轻量级操作，可保留在主线程）
+    NSString *fileName = [url.lastPathComponent stringByAppendingPathExtensionForMediaType:mediaType];
+    NSURL *destinationURL = [NSTemporaryDirectory().URL appendingPathComponent:fileName];
     
+    // 文件移动（同步操作，但耗时极短，可接受）
     if ([[NSFileManager defaultManager] moveItemAtURL:location toURL:destinationURL error:nil]) {
         if (mediaType == MediaTypeAudio) {
-            [self presentShareActivityWithUrl:destinationURL];
+            [self presentShareActivityWithUrl:destinationURL]; // UI 操作
         } else {
-            [self saveMediaWithUrl:destinationURL mediaType:mediaType];
+            [self saveMediaWithUrl:destinationURL mediaType:mediaType]; // UI 操作
         }
     } else {
-        NSLog(@"文件移动失败: %@", error.localizedDescription);
+        NSLog(@"文件移动失败");
     }
 }
 
-// MARK: - 下载失败处理
+// MARK: - 下载失败处理（主线程）
 - (void)handleDownloadFailure:(NSError *)error) {
-    showToast(@"下载失败: %@", error.localizedDescription);
+    showToast(@"下载失败: %@", error.localizedDescription); // UI 操作
 }
-
-// MARK: - UI 相关方法
-- (void)presentShareActivityWithUrl:(NSURL *)url {
-    UIActivityViewController *activityVC = [[UIActivityViewController alloc] initWithActivityItems:@[url] applicationActivities:nil];
-    [activityVC setCompletionWithItemsHandler:^(UIActivityType _Nullable activityType, BOOL completed, NSArray * _Nullable returnedItems, NSError * _Nullable error) {
-        [[NSFileManager defaultManager] removeItemAtURL:url error:nil];
-    }];
-    UIViewController *topVC = topView();
-    if (topVC) [topVC presentViewController:activityVC animated:YES completion:nil];
-}
-
-- (void)saveMediaWithUrl:(NSURL *)url mediaType:(MediaType)mediaType {
-    // 保存到相册或本地沙盒的逻辑
-}
-
 
 
 //长按页面插入无水印下载
