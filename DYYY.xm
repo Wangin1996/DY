@@ -1400,46 +1400,77 @@ static void saveMedia(NSURL *mediaURL, MediaType mediaType) {
 
 //下载方法
 static void downloadMedia(NSURL *url, MediaType mediaType) {
+    // 1. 创建进度条（在调用此方法前添加到视图层级）
+    UIProgressView *progressView = [[UIProgressView alloc] initWithFrame:CGRectMake(0, 0, 200, 20)];
+    progressView.progressTintColor = [UIColor blueColor];
+    progressView.trackTintColor = [UIColor lightGrayColor];
+    progressView.progress = 0.0;
+    
+    // 2. 显示进度条（需在视图控制器中执行）
     dispatch_async(dispatch_get_main_queue(), ^{
-        UIAlertController *loadingAlert = [UIAlertController alertControllerWithTitle:@"解析中..." message:nil preferredStyle:UIAlertControllerStyleAlert];
         UIViewController *topVC = topView();
-        if (topVC) [topVC presentViewController:loadingAlert animated:YES completion:nil];
-
-        NSURLSession *session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration]];
-        NSURLSessionDownloadTask *downloadTask = [session downloadTaskWithURL:url completionHandler:^(NSURL *location, NSURLResponse *response, NSError *error) {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                [loadingAlert dismissViewControllerAnimated:YES completion:nil];
-            });
-            if (!error) {
-                NSString *fileName = url.lastPathComponent;
-                if (!fileName.pathExtension.length) {
-                    switch (mediaType) {
-                        case MediaTypeVideo: fileName = [fileName stringByAppendingPathExtension:@"mp4"]; break;
-                        case MediaTypeImage: fileName = [fileName stringByAppendingPathExtension:@"jpg"]; break;
-                        case MediaTypeAudio: fileName = [fileName stringByAppendingPathExtension:@"mp3"]; break;
-                    }
-                }
-                NSURL *tempDir = [NSURL fileURLWithPath:NSTemporaryDirectory()];
-                NSURL *destinationURL = [tempDir URLByAppendingPathComponent:fileName];
-                [[NSFileManager defaultManager] moveItemAtURL:location toURL:destinationURL error:nil];
-                if (mediaType == MediaTypeAudio) {
-                    dispatch_async(dispatch_get_main_queue(), ^{
-                        UIActivityViewController *activityVC = [[UIActivityViewController alloc] initWithActivityItems:@[destinationURL] applicationActivities:nil];
-                        [activityVC setCompletionWithItemsHandler:^(UIActivityType _Nullable activityType, BOOL completed, NSArray * _Nullable returnedItems, NSError * _Nullable error) {
-                            [[NSFileManager defaultManager] removeItemAtURL:destinationURL error:nil];
-                        }];
-                        UIViewController *topVC = topView();
-                        if (topVC) [topVC presentViewController:activityVC animated:YES completion:nil];
-                    });
-                } else {
-                    saveMedia(destinationURL, mediaType);
-                }
-            } else {
-                showToast(@"下载失败");
-            }
-        }];
-        [downloadTask resume];
+        if (topVC) {
+            [topVC.view addSubview:progressView];
+            [topVC.view bringSubviewToFront:progressView];
+            progressView.center = CGPointMake(topVC.view.centerX, topVC.view.centerY - 50);
+        }
     });
+
+    NSURLSession *session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration]];
+    NSURLSessionDownloadTask *downloadTask = [session downloadTaskWithURL:url completionHandler:^(NSURL *location, NSURLResponse *response, NSError *error) {
+        // 3. 下载完成/失败时隐藏进度条
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (topVC) {
+                [progressView removeFromSuperview];
+            }
+        });
+
+        if (!error) {
+            NSString *fileName = url.lastPathComponent;
+            if (!fileName.pathExtension.length) {
+                switch (mediaType) {
+                    case MediaTypeVideo: fileName = [fileName stringByAppendingPathExtension:@"mp4"]; break;
+                    case MediaTypeImage: fileName = [fileName stringByAppendingPathExtension:@"jpg"]; break;
+                    case MediaTypeAudio: fileName = [fileName stringByAppendingPathExtension:@"mp3"]; break;
+                }
+            }
+            NSURL *tempDir = [NSURL fileURLWithPath:NSTemporaryDirectory()];
+            NSURL *destinationURL = [tempDir URLByAppendingPathComponent:fileName];
+            [[NSFileManager defaultManager] moveItemAtURL:location toURL:destinationURL error:nil];
+            
+            // 4. 显示成功提示
+            dispatch_async(dispatch_get_main_queue(), ^{
+                UIAlertController *successAlert = [UIAlertController alertControllerWithTitle:@"下载完成" message:[NSString stringWithFormat:@"%@已保存", fileName] preferredStyle:UIAlertControllerStyleAlert];
+                UIAlertAction *okAction = [UIAlertAction actionWithTitle:@"确定" style:UIAlertActionStyleDefault handler:nil];
+                [successAlert addAction:okAction];
+                [topVC presentViewController:successAlert animated:YES completion:nil];
+            });
+        } else {
+            // 5. 显示失败提示
+            dispatch_async(dispatch_get_main_queue(), ^{
+                UIAlertController *errorAlert = [UIAlertController alertControllerWithTitle:@"下载失败" message:error.localizedDescription preferredStyle:UIAlertControllerStyleAlert];
+                UIAlertAction *okAction = [UIAlertAction actionWithTitle:@"确定" style:UIAlertActionStyleDefault handler:nil];
+                [errorAlert addAction:okAction];
+                [topVC presentViewController:errorAlert animated:YES completion:nil];
+            });
+        }
+    }];
+    
+    // 6. 监听下载进度（每秒更新）
+    [downloadTask addNotificationForName:NSURLSessionDownloadTaskDidUpdateProgressNotification
+                                     object:nil
+                                     queue:[NSOperationQueue mainQueue]
+                                     usingBlock:^(NSNotification * _Nonnull notification) {
+                                         NSURLSessionDownloadTask *task = notification.object;
+                                         float progress = (float)task.progress;
+                                         dispatch_async(dispatch_get_main_queue(), ^{
+                                             if (topVC && progressView) {
+                                                 progressView.progress = progress;
+                                             }
+                                         });
+                                     }];
+
+    [downloadTask resume];
 }
 
 
