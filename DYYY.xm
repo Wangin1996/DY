@@ -347,7 +347,7 @@ typedef NS_ENUM(NSUInteger, MediaType) {
         newItem.title = @"抖音助手"; // 显示标题
         //newItem.detail = @"2.0"; // 副标题/描述
         newItem.type = 0; // 条目类型
-        newItem.iconImageName = @"ic_xiocan_outlined_20"; // 图标资源名称
+        newItem.iconImageName = @"noticesettting_like"; // 图标资源名称
         newItem.cellType = 26; // 单元格样式类型
         newItem.colorStyle = 2; // 颜色样式
         newItem.isEnable = YES; // 是否可交互
