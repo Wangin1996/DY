@@ -1357,44 +1357,16 @@ typedef NS_ENUM(NSUInteger, MediaType) {
 
 
 // 显示提示信息（优化版）
+// 显示提示信息
 static void showToast(NSString *text) {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        // 1. 创建提示框
-        UIAlertController *toast = [UIAlertController alertControllerWithTitle:nil 
-                                                                message:text 
-                                                                preferredStyle:UIAlertControllerStyleAlert];
-        
-        // 强制布局以获取正确尺寸（关键步骤）
-        [toast.view layoutIfNeeded];
-        
-        // 2. 获取主窗口并考虑安全区域（适配全面屏）
-        UIWindow *window = [UIApplication sharedApplication].keyWindow;
-        CGFloat safeAreaInsets = window.safeAreaInsets.bottom; // 可根据需要调整其他边距
-        
-        // 3. 动态计算位置（屏幕顶部居中 + 安全区域适配）
-        CGFloat screenWidth = window.bounds.size.width - safeAreaInsets;
-        CGFloat toastWidth = toast.view.bounds.size.width;
-        CGFloat horizontalCenter = (screenWidth - toastWidth) / 2;
-        CGFloat verticalOffset = 60; // 根据导航栏高度调整
-        
-        CGRect frame = CGRectMake(
-            horizontalCenter,
-            verticalOffset + safeAreaInsets, // 垂直位置加入安全区域
-            toastWidth,
-            toast.view.bounds.size.height
-        );
-        
-        // 4. 添加到窗口并设置自动移除
-        toast.view.frame = frame;
-        [window addSubview:toast.view];
-        
-        __weak UIView *weakToastView = toast.view;
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            if (weakToastView) {
-                [weakToastView removeFromSuperview];
-            }
+    UIAlertController *toast = [UIAlertController alertControllerWithTitle:nil message:text preferredStyle:UIAlertControllerStyleAlert];
+    UIViewController *topVC = topView();
+    if (topVC) {
+        [topVC presentViewController:toast animated:YES completion:nil];
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            [toast dismissViewControllerAnimated:YES completion:nil];
         });
-    });
+    }
 }
 
 // 保存媒体到相册
