@@ -1433,6 +1433,14 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
     });
 }
 
+
+
+
+@interface AWELongPressPanelTableViewController (Download)
+- (void)downloadAllImages:(NSArray<AWEImageAlbumImageModel *> *)imageModels;
+@end
+
+
 //长按页面插入无水印下载
 %hook AWELongPressPanelTableViewController
 - (NSArray *)dataArray {
