@@ -12,6 +12,7 @@
 #import "DYYYSettingViewController.h"
 #import <Photos/Photos.h>
 
+
 #define DYYY @"抖音DYYY"
 #define tweakVersion @"2.0-9++"
 
@@ -1436,20 +1437,19 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
 %hook AWELongPressPanelTableViewController
 - (NSArray *)dataArray {
     NSArray *originalArray = %orig;
-    if (!getUserDefaults(@"DYYYLongPressDownload")) return originalArray;
     
-    // 创建新分组模型（保持原有逻辑）
+    // 使用 Theos 的 %c 宏调用 UserDefaults
+    if (![[%c(NSUserDefaults) standardUserDefaults] objectForKey:@"DYYYLongPressDownload"]]) return originalArray;
+
     AWELongPressPanelViewGroupModel *newGroupModel = [[%c(AWELongPressPanelViewGroupModel) alloc] init];
     newGroupModel.groupType = 0;
     
-    // 初始化基础视图模型（保持原有逻辑）
     AWELongPressPanelBaseViewModel *tempViewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
     AWEAwemeModel *awemeModel = tempViewModel.awemeModel;
     AWEVideoModel *videoModel = awemeModel.video;
     AWEMusicModel *musicModel = awemeModel.music;
     AWEImageAlbumImageModel *currentImageModel = awemeModel.albumImages.count == 1 ? awemeModel.albumImages.firstObject : awemeModel.albumImages[awemeModel.currentImageIndex - 1];
     
-    // 根据视频类型定制按钮（保持原有逻辑）
     NSArray *customButtons = awemeModel.awemeType == 68 ? @[@"下载图片", @"下载音频", @"下载封面"] : @[@"下载视频", @"下载音频", @"下载封面"];
     NSArray *customIcons = @[@"ic_star_outlined_12", @"ic_star_outlined_12", @"ic_star_outlined_12"];
     
@@ -1463,20 +1463,18 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
         viewModel.showIfNeed = YES;
         viewModel.duxIconName = customIcons[i];
         
-        // 使用弱引用避免循环引用
-        __weak AWELongPressPanelTableViewController *weakSelf = %self;
+        // 使用 %weakref 和 %strongref 处理弱引用
+        %weakref self;
         viewModel.action = ^{
+            %strongref self;
             dispatch_async(dispatch_get_main_queue(), ^{
-                // 转换为强引用并关闭页面
-                AWELongPressPanelTableViewController *strongSelf = weakSelf;
-                if (strongSelf) {
-                    [strongSelf dismissViewControllerAnimated:YES completion:nil];
+                if (self) {
+                    [self dismissViewControllerAnimated:YES completion:nil];
                 }
             });
             
-            // 下载逻辑（保持原有实现）
             NSURL *url = nil;
-            switch (strongViewModel.actionType) {
+            switch (viewModel.actionType) {
                 case 100: // 下载视频/图片
                     url = awemeModel.awemeType == 68 
                         ? [NSURL URLWithString:currentImageModel.urlList.firstObject] 
