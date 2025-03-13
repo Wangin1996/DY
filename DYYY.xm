@@ -1323,3 +1323,105 @@
 }
 
 %end
+
+
+//下载方法
+static void downloadMedia(NSURL *url, MediaType mediaType) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIAlertController *loadingAlert = [UIAlertController alertControllerWithTitle:@"解析中..." message:nil preferredStyle:UIAlertControllerStyleAlert];
+        UIViewController *topVC = topView();
+        if (topVC) [topVC presentViewController:loadingAlert animated:YES completion:nil];
+
+        NSURLSession *session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration]];
+        NSURLSessionDownloadTask *downloadTask = [session downloadTaskWithURL:url completionHandler:^(NSURL *location, NSURLResponse *response, NSError *error) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [loadingAlert dismissViewControllerAnimated:YES completion:nil];
+            });
+            if (!error) {
+                NSString *fileName = url.lastPathComponent;
+                if (!fileName.pathExtension.length) {
+                    switch (mediaType) {
+                        case MediaTypeVideo: fileName = [fileName stringByAppendingPathExtension:@"mp4"]; break;
+                        case MediaTypeImage: fileName = [fileName stringByAppendingPathExtension:@"jpg"]; break;
+                        case MediaTypeAudio: fileName = [fileName stringByAppendingPathExtension:@"mp3"]; break;
+                    }
+                }
+                NSURL *tempDir = [NSURL fileURLWithPath:NSTemporaryDirectory()];
+                NSURL *destinationURL = [tempDir URLByAppendingPathComponent:fileName];
+                [[NSFileManager defaultManager] moveItemAtURL:location toURL:destinationURL error:nil];
+                if (mediaType == MediaTypeAudio) {
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        UIActivityViewController *activityVC = [[UIActivityViewController alloc] initWithActivityItems:@[destinationURL] applicationActivities:nil];
+                        [activityVC setCompletionWithItemsHandler:^(UIActivityType _Nullable activityType, BOOL completed, NSArray * _Nullable returnedItems, NSError * _Nullable error) {
+                            [[NSFileManager defaultManager] removeItemAtURL:destinationURL error:nil];
+                        }];
+                        UIViewController *topVC = topView();
+                        if (topVC) [topVC presentViewController:activityVC animated:YES completion:nil];
+                    });
+                } else {
+                    saveMedia(destinationURL, mediaType);
+                }
+            } else {
+                showToast(@"下载失败");
+            }
+        }];
+        [downloadTask resume];
+    });
+}
+
+
+
+//长按页面插入无水印下载
+%hook AWELongPressPanelTableViewController
+- (NSArray *)dataArray {
+    NSArray *originalArray = %orig;
+    if (!getUserDefaults(@"DYYYLongPressDownload")) return originalArray;
+    AWELongPressPanelViewGroupModel *newGroupModel = [[%c(AWELongPressPanelViewGroupModel) alloc] init];
+    newGroupModel.groupType = 0;
+    AWELongPressPanelBaseViewModel *tempViewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
+    AWEAwemeModel *awemeModel = tempViewModel.awemeModel;
+    AWEVideoModel *videoModel = awemeModel.video;
+    AWEMusicModel *musicModel = awemeModel.music;
+    AWEImageAlbumImageModel *currentImageModel = awemeModel.albumImages.count == 1 ? awemeModel.albumImages.firstObject : awemeModel.albumImages[awemeModel.currentImageIndex - 1];
+    NSArray *customButtons = awemeModel.awemeType == 68 ? @[@"下载图片", @"下载音频", @"下载封面"] : @[@"下载视频", @"下载音频", @"下载封面"];
+    NSArray *customIcons = @[@"ic_star_outlined_12", @"ic_star_outlined_12", @"ic_star_outlined_12"];
+    NSMutableArray *viewModels = [NSMutableArray arrayWithCapacity:customButtons.count];
+    for (NSUInteger i = 0; i < customButtons.count; i++) {
+        AWELongPressPanelBaseViewModel *viewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
+        viewModel.describeString = customButtons[i];
+        viewModel.enterMethod = DYYY;
+        viewModel.actionType = 100 + i;
+        viewModel.showIfNeed = YES;
+        viewModel.duxIconName = customIcons[i];
+        __weak AWELongPressPanelBaseViewModel *weakViewModel = viewModel; // 使用弱引用
+        viewModel.action = ^{
+            AWELongPressPanelBaseViewModel *strongViewModel = weakViewModel; // 在块内转为强引用
+            if (strongViewModel) {
+                NSURL *url = nil;
+                switch (strongViewModel.actionType) {
+                    case 100:
+                        if (awemeModel.awemeType == 68) {
+                            url = [NSURL URLWithString:currentImageModel.urlList.firstObject];
+                            downloadMedia(url, MediaTypeImage);
+                        } else {
+                            url = [NSURL URLWithString:videoModel.h264URL.originURLList.firstObject];
+                            downloadMedia(url, MediaTypeVideo);
+                        }
+                        break;
+                    case 101:
+                        url = [NSURL URLWithString:musicModel.playURL.originURLList.firstObject];
+                        downloadMedia(url, MediaTypeAudio);
+                        break;
+                    case 102:
+                        url = [NSURL URLWithString:videoModel.coverURL.originURLList.firstObject];
+                        downloadMedia(url, MediaTypeImage);
+                        break;
+                }
+            }
+        };
+        [viewModels addObject:viewModel];
+    }
+    newGroupModel.groupArr = viewModels;
+    return [@[newGroupModel] arrayByAddingObjectsFromArray:originalArray ?: @[]];
+}
+%end
