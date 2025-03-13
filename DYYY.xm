@@ -1436,76 +1436,61 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
 
 
 
-@interface AWELongPressPanelTableViewController (Download)
-- (void)downloadAllImages:(NSArray<AWEImageAlbumImageModel *> *)imageModels;
-@end
-
-
 //长按页面插入无水印下载
 %hook AWELongPressPanelTableViewController
 - (NSArray *)dataArray {
     NSArray *originalArray = %orig;
     if (![[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYlongpressdownload"]) return originalArray;
     
+    // 新增分组模型
     AWELongPressPanelViewGroupModel *newGroupModel = [[%c(AWELongPressPanelViewGroupModel) alloc] init];
     newGroupModel.groupType = 0;
     
-    // 添加边界检查
-    NSInteger selectedIndex = awemeModel.currentImageIndex;
-    selectedIndex = MAX(1, MIN(selectedIndex, awemeModel.albumImages.count));
-    AWEImageAlbumImageModel *currentImageModel = awemeModel.albumImages[selectedIndex - 1];
-    BOOL hasMultipleImages = awemeModel.albumImages.count >= 2;
-
-    NSArray *customButtons = @"";
-    NSArray *customIcons = @"";
+    AWELongPressPanelBaseViewModel *tempViewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
+    AWEAwemeModel *awemeModel = tempViewModel.awemeModel;
     
-    if (awemeModel.awemeType == 68) { // 图片专辑
-        customButtons = @[@"下载图片", @"下载音频"];
-        customIcons = @[@"ic_download_image_12", @"ic_download_audio_12"];
-        
-        if (hasMultipleImages) {
-            customButtons = [customButtons arrayByAddingObject:@"下载所有图片"];
-            customIcons = [customIcons arrayByAddingObject:@"ic_download_all_12"];
-        }
-    } else { // 视频
+    // 根据帖子类型配置按钮
+    NSArray *customButtons;
+    if (awemeModel.awemeType == 68) { // 图片帖子
+        customButtons = @[@"下载图片", @"下载所有图片", @"下载音频"]; // 新增按钮
+    } else {
         customButtons = @[@"下载视频", @"下载音频"];
-        customIcons = @[@"ic_download_video_12", @"ic_download_audio_12"];
     }
     
-    NSMutableArray *viewModels = [NSMutableArray arrayWithCapacity:customButtons.count];
+    NSArray *customIcons = @[@"ic_star_outlined_12", @"ic_star_outlined_12", @"ic_star_outlined_12"]; // 扩展图标数组
     
+    NSMutableArray *viewModels = [NSMutableArray arrayWithCapacity:customButtons.count];
     for (NSUInteger i = 0; i < customButtons.count; i++) {
-        AWELongPressPanelBaseViewModel *viewModel = [%c(AWELongPressPanelBaseViewModel) new];
+        AWELongPressPanelBaseViewModel *viewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
         viewModel.describeString = customButtons[i];
         viewModel.enterMethod = DYYY;
         viewModel.actionType = 100 + i;
         viewModel.showIfNeed = YES;
         viewModel.duxIconName = customIcons[i];
         
-        __weak typeof(viewModel) weakVM = viewModel;
+        __weak AWELongPressPanelBaseViewModel *weakViewModel = viewModel;
         viewModel.action = ^{
-            typeof(weakVM) strongVM = weakVM;
-            if (!strongVM) return;
-            
-            switch (strongVM.actionType) {
-                case 100: { // 单个下载
-                    NSURL *url = [strongVM.awemeModel isAWEMediaTypeVideo] ? 
-                        [NSURL URLWithString:strongVM.awemeModel.video.h264URL.originURLList.firstObject] :
-                        [self getImageDownloadUrl:currentImageModel];
-                    downloadMedia(url, strongVM.awemeModel.isAWEMediaTypeVideo ? MediaTypeVideo : MediaTypeImage);
-                    break;
-                }
-                case 101: { // 音频下载
-                    NSURL *url = [NSURL URLWithString:strongVM.awemeModel.music.playURL.originURLList.firstObject];
-                    downloadMedia(url, MediaTypeAudio);
-                    break;
-                }
-                case 102: { // 批量下载图片
-                    [strongVM.awemeModel.albumImages enumerateObjectsUsingBlock:^(AWEImageAlbumImageModel *imgModel, NSUInteger idx, BOOL *stop) {
-                        NSURL *url = [NSURL URLWithString:imgModel.urlList.firstObject];
+            AWELongPressPanelBaseViewModel *strongViewModel = weakViewModel;
+            if (strongViewModel) {
+                NSURL *url = nil;
+                switch (strongViewModel.actionType) {
+                    case 100: // 原有图片下载
+                        url = [NSURL URLWithString:currentImageModel.urlList.firstObject];
                         downloadMedia(url, MediaTypeImage);
-                    }];
-                    break;
+                        break;
+                    case 101: // 原有音频下载
+                        url = [NSURL URLWithString:musicModel.playURL.originURLList.firstObject];
+                        downloadMedia(url, MediaTypeAudio);
+                        break;
+                    case 102: // 新增全图下载
+                        if (awemeModel.awemeType == 68) {
+                            NSArray<AWEImageAlbumImageModel *> *allImages = awemeModel.albumImages;
+                            [allImages enumerateObjectsUsingBlock:^(AWEImageAlbumImageModel *imageModel, NSUInteger idx, BOOL *stop) {
+                                NSURL *imageUrl = [NSURL URLWithString:imageModel.urlList.firstObject];
+                                downloadMedia(imageUrl, MediaTypeImage);
+                            }];
+                        }
+                        break;
                 }
             }
         };
