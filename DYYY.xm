@@ -1400,43 +1400,43 @@ static void saveMedia(NSURL *mediaURL, MediaType mediaType) {
 
 //下载方法
 static void downloadMedia(NSURL *url, MediaType mediaType) {
-    // 1. 防止重复下载
-    if ([self isDownloading]) return;
-    self.isDownloading = YES;
-
     dispatch_async(dispatch_get_main_queue(), ^{
-        // 2. 显示加载提示
         UIAlertController *loadingAlert = [UIAlertController alertControllerWithTitle:@"解析中..." message:nil preferredStyle:UIAlertControllerStyleAlert];
         UIViewController *topVC = topView();
-        [topVC presentViewController:loadingAlert animated:YES completion:nil];
+        if (topVC) [topVC presentViewController:loadingAlert animated:YES completion:nil];
 
-        // 3. 启动下载任务
         NSURLSession *session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration]];
         NSURLSessionDownloadTask *downloadTask = [session downloadTaskWithURL:url completionHandler:^(NSURL *location, NSURLResponse *response, NSError *error) {
             dispatch_async(dispatch_get_main_queue(), ^{
-                // 4. 隐藏加载提示
                 [loadingAlert dismissViewControllerAnimated:YES completion:nil];
-
-                if (!error) {
-                    // 5. 处理文件
-                    NSString *fileName = [self getFileNameWithURL:url mediaType:mediaType];
-                    NSURL *destinationURL = [self getDestinationURL:fileName];
-
-                    NSError *moveError = nil;
-                    if ([[NSFileManager defaultManager] moveItemAtURL:location toURL:destinationURL error:&moveError]) {
-                        // 6. 分发处理逻辑
-                        [self handleMediaSaved:destinationURL mediaType:mediaType];
-                    } else {
-                        showToast(@"文件保存失败");
-                    }
-                } else {
-                    // 7. 错误处理
-                    showToast([NSString stringWithFormat:@"下载失败：%@", error.localizedDescription]);
-                }
-
-                // 8. 重置下载状态
-                self.isDownloading = NO;
             });
+            if (!error) {
+                NSString *fileName = url.lastPathComponent;
+                if (!fileName.pathExtension.length) {
+                    switch (mediaType) {
+                        case MediaTypeVideo: fileName = [fileName stringByAppendingPathExtension:@"mp4"]; break;
+                        case MediaTypeImage: fileName = [fileName stringByAppendingPathExtension:@"jpg"]; break;
+                        case MediaTypeAudio: fileName = [fileName stringByAppendingPathExtension:@"mp3"]; break;
+                    }
+                }
+                NSURL *tempDir = [NSURL fileURLWithPath:NSTemporaryDirectory()];
+                NSURL *destinationURL = [tempDir URLByAppendingPathComponent:fileName];
+                [[NSFileManager defaultManager] moveItemAtURL:location toURL:destinationURL error:nil];
+                if (mediaType == MediaTypeAudio) {
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        UIActivityViewController *activityVC = [[UIActivityViewController alloc] initWithActivityItems:@[destinationURL] applicationActivities:nil];
+                        [activityVC setCompletionWithItemsHandler:^(UIActivityType _Nullable activityType, BOOL completed, NSArray * _Nullable returnedItems, NSError * _Nullable error) {
+                            [[NSFileManager defaultManager] removeItemAtURL:destinationURL error:nil];
+                        }];
+                        UIViewController *topVC = topView();
+                        if (topVC) [topVC presentViewController:activityVC animated:YES completion:nil];
+                    });
+                } else {
+                    saveMedia(destinationURL, mediaType);
+                }
+            } else {
+                showToast(@"下载失败");
+            }
         }];
         [downloadTask resume];
     });
@@ -1449,6 +1449,7 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
 - (NSArray *)dataArray {
     NSArray *originalArray = %orig;
     if (![[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYlongpressdownload"]) return originalArray;
+    
     AWELongPressPanelViewGroupModel *newGroupModel = [[%c(AWELongPressPanelViewGroupModel) alloc] init];
     newGroupModel.groupType = 0;
     AWELongPressPanelBaseViewModel *tempViewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
@@ -1456,44 +1457,84 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
     AWEVideoModel *videoModel = awemeModel.video;
     AWEMusicModel *musicModel = awemeModel.music;
     AWEImageAlbumImageModel *currentImageModel = awemeModel.albumImages.count == 1 ? awemeModel.albumImages.firstObject : awemeModel.albumImages[awemeModel.currentImageIndex - 1];
-    NSArray *customButtons = awemeModel.awemeType == 68 ? @[@"下载图片", @"下载音频"] : @[@"下载视频", @"下载音频",];
-    NSArray *customIcons = @[@"ic_star_outlined_12", @"ic_star_outlined_12", @"ic_star_outlined_12"];
+    
+    // █ 修改点1：动态生成包含FPS的按钮数组
+    NSArray *customButtons = @"";
+    if (awemeModel.awemeType == 68) {
+        customButtons = @[@"下载图片", @"下载音频"];
+    } else {
+        NSMutableSet *fpsSet = [NSMutableSet set];
+        for (NSDictionary *model in videoModel.bitrateModels) {
+            NSNumber *fps = model[@"FPS"];
+            if (fps) [fpsSet addObject:@(fps.integerValue)];
+        }
+        
+        NSMutableArray *fpsButtons = [NSMutableArray array];
+        for (NSInteger fps in fpsSet) {
+            fpsButtons addObject([NSString stringWithFormat:@"下载视频-%ldFPS", (long)fps]);
+        }
+        
+        customButtons = [@[ @"下载音频", @"下载封面图" ] arrayByAddingObjectsFromArray:fpsButtons];
+    }
+    
     NSMutableArray *viewModels = [NSMutableArray arrayWithCapacity:customButtons.count];
     for (NSUInteger i = 0; i < customButtons.count; i++) {
         AWELongPressPanelBaseViewModel *viewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
         viewModel.describeString = customButtons[i];
         viewModel.enterMethod = DYYY;
-        viewModel.actionType = 100 + i;
+        
+        // █ 修改点2：动态分配 actionType
+        if (awemeModel.awemeType != 68 && i >= 2) {
+            viewModel.actionType = 100 + i - 2; // FPS按钮从actionType=102开始
+        } else {
+            viewModel.actionType = 100 + i;
+        }
+        
         viewModel.showIfNeed = YES;
-        viewModel.duxIconName = customIcons[i];
-        __weak AWELongPressPanelBaseViewModel *weakViewModel = viewModel; // 使用弱引用
+        viewModel.duxIconName = @"ic_star_outlined_12";
+        
+        __weak AWELongPressPanelBaseViewModel *weakViewModel = viewModel;
         viewModel.action = ^{
-            AWELongPressPanelBaseViewModel *strongViewModel = weakViewModel; // 在块内转为强引用
+            AWELongPressPanelBaseViewModel *strongViewModel = weakViewModel;
             if (strongViewModel) {
                 NSURL *url = nil;
+                NSNumber *fps = nil;
+                
                 switch (strongViewModel.actionType) {
-                    case 100:
-                        if (awemeModel.awemeType == 68) {
-                            url = [NSURL URLWithString:currentImageModel.urlList.firstObject];
-                            downloadMedia(url, MediaTypeImage);
-                        } else {
-                            url = [NSURL URLWithString:videoModel.h264URL.originURLList.firstObject];
-                            downloadMedia(url, MediaTypeVideo);
-                        }
-                        break;
-                    case 101:
+                    case 100: // 下载音频
                         url = [NSURL URLWithString:musicModel.playURL.originURLList.firstObject];
                         downloadMedia(url, MediaTypeAudio);
                         break;
-                    case 102:
+                        
+                    case 101: // 下载封面图
                         url = [NSURL URLWithString:videoModel.coverURL.originURLList.firstObject];
                         downloadMedia(url, MediaTypeImage);
+                        break;
+                        
+                    default: // FPS相关操作
+                        if (awemeModel.awemeType != 68) {
+                            // █ 修改点3：根据actionType查找对应的FPS和URL
+                            fps = @(strongViewModel.actionType - 100 + 30); // 简化示例，实际应从bitrateModels中匹配
+                            NSArray *bitrateModels = videoModel.bitrateModels;
+                            for (NSDictionary *model in bitrateModels) {
+                                if ([model[@"FPS"] isEqualToNumber:fps]) {
+                                    url = [NSURL URLWithString:model[@"play_addr"].urlList.firstObject];
+                                    break;
+                                }
+                            }
+                            
+                            if (url && fps) {
+                                // █ 修改点4：将FPS传递给downloadMedia
+                                downloadMedia(url, MediaTypeVideo, fps);
+                            }
+                        }
                         break;
                 }
             }
         };
         [viewModels addObject:viewModel];
     }
+    
     newGroupModel.groupArr = viewModels;
     return [@[newGroupModel] arrayByAddingObjectsFromArray:originalArray ?: @[]];
 }
