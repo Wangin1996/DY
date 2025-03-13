@@ -1,3 +1,9 @@
+@class AWEVideoModel;
+@class AWEMusicModel;
+@class AWEImageAlbumImageModel;
+@class AWEAwemeModel;
+@class CityManager;
+
 // AWELongPressPanelBaseViewModel
 @interface AWELongPressPanelBaseViewModel : NSObject
 @property (nonatomic, strong) AWEAwemeModel *awemeModel;
