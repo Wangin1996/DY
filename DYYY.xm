@@ -1438,7 +1438,6 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
 
 
 %hook AWELongPressPanelTableViewController
-{
     static BOOL isDownloading = NO; // 全局下载状态标识
     
     - (NSArray *)dataArray {
