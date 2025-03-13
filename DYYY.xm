@@ -1360,10 +1360,10 @@ typedef NS_ENUM(NSUInteger, MediaType) {
 + (void)showText:(id)arg1;
 @end
 
-UIWindow *window = [UIApplication sharedApplication].keyWindow;
+CGRect safeAreaFrame = window.safeAreaLayoutGuide.layoutFrame;
 CGPoint topCenter = CGPointMake(
-    window.safeAreaLayoutGuide.centerXAnchor.coordinate, // X 轴居中
-    window.safeAreaLayoutGuide.topAnchor.coordinate      // Y 轴安全区域顶部
+    CGRectGetMidX(safeAreaFrame),    // X 轴安全区域中心
+    CGRectGetMinY(safeAreaFrame) + 40 // Y 轴安全区域顶部 + 偏移量
 );
 
 void showToast(NSString *text) {
