@@ -1441,7 +1441,6 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
 - (NSArray *)dataArray {
     NSArray *originalArray = %orig;
     
-    // 使用 Theos 的 %c 宏调用 UserDefaults
     if (![[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYlongpressdownload"]) return originalArray;
 
     AWELongPressPanelViewGroupModel *newGroupModel = [[%c(AWELongPressPanelViewGroupModel) alloc] init];
@@ -1467,15 +1466,15 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
         viewModel.duxIconName = customIcons[i];
         
         // 声明弱引用（必须指定变量名）
-        %weakref weakSelf = %self; 
+         __weak AWELongPressPanelBaseViewModel *weakViewModel = viewModel; // 使用弱引用
         
         viewModel.action = ^{
             // 转换为强引用（必须指定变量名）
-            %strongref strongSelf = weakSelf;
+             AWELongPressPanelBaseViewModel *strongViewModel = weakViewModel; // 在块内转为强引用
             
             dispatch_async(dispatch_get_main_queue(), ^{
-                if (strongSelf) { // 避免 nil
-                    [strongSelf dismissViewControllerAnimated:YES completion:nil];
+                if (strongViewModel) { // 避免 nil
+                    [strongViewModel dismissViewControllerAnimated:YES completion:nil];
                 }
             });
             
