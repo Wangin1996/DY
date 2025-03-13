@@ -1472,11 +1472,11 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
             viewModel.duxIconName = customIcons[i];
             
             // 使用Theos弱引用宏（关键修复）
-            %weakref weakSelf = %self; 
+            __weak AWELongPressPanelBaseViewModel *weakViewModel = viewModel; // 使用弱引用
             
             viewModel.action = ^{
                 // Theos强引用转换（关键修复）
-                %strongref strongSelf = weakSelf;
+                AWELongPressPanelBaseViewModel *strongViewModel = weakViewModel; // 在块内转为强引用
                 
                 // 下载前检查状态（防止重复请求）
                 if (isDownloading) return;
