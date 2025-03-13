@@ -1449,7 +1449,6 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
 - (NSArray *)dataArray {
     NSArray *originalArray = %orig;
     if (![[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYlongpressdownload"]) return originalArray;
-    
     AWELongPressPanelViewGroupModel *newGroupModel = [[%c(AWELongPressPanelViewGroupModel) alloc] init];
     newGroupModel.groupType = 0;
     AWELongPressPanelBaseViewModel *tempViewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
@@ -1457,84 +1456,44 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
     AWEVideoModel *videoModel = awemeModel.video;
     AWEMusicModel *musicModel = awemeModel.music;
     AWEImageAlbumImageModel *currentImageModel = awemeModel.albumImages.count == 1 ? awemeModel.albumImages.firstObject : awemeModel.albumImages[awemeModel.currentImageIndex - 1];
-    
-    // █ 修改点1：动态生成包含FPS的按钮数组
-    NSArray *customButtons = @"";
-    if (awemeModel.awemeType == 68) {
-        customButtons = @[@"下载图片", @"下载音频"];
-    } else {
-        NSMutableSet *fpsSet = [NSMutableSet set];
-        for (NSDictionary *model in videoModel.bitrateModels) {
-            NSNumber *fps = model[@"FPS"];
-            if (fps) [fpsSet addObject:@(fps.integerValue)];
-        }
-        
-        NSMutableArray *fpsButtons = [NSMutableArray array];
-        for (NSInteger fps in fpsSet) {
-            fpsButtons addObject([NSString stringWithFormat:@"下载视频-%ldFPS", (long)fps]);
-        }
-        
-        customButtons = [@[ @"下载音频", @"下载封面图" ] arrayByAddingObjectsFromArray:fpsButtons];
-    }
-    
+    NSArray *customButtons = awemeModel.awemeType == 68 ? @[@"下载图片", @"下载音频"] : @[@"下载视频", @"下载音频",];
+    NSArray *customIcons = @[@"ic_star_outlined_12", @"ic_star_outlined_12", @"ic_star_outlined_12"];
     NSMutableArray *viewModels = [NSMutableArray arrayWithCapacity:customButtons.count];
     for (NSUInteger i = 0; i < customButtons.count; i++) {
         AWELongPressPanelBaseViewModel *viewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
         viewModel.describeString = customButtons[i];
         viewModel.enterMethod = DYYY;
-        
-        // █ 修改点2：动态分配 actionType
-        if (awemeModel.awemeType != 68 && i >= 2) {
-            viewModel.actionType = 100 + i - 2; // FPS按钮从actionType=102开始
-        } else {
-            viewModel.actionType = 100 + i;
-        }
-        
+        viewModel.actionType = 100 + i;
         viewModel.showIfNeed = YES;
-        viewModel.duxIconName = @"ic_star_outlined_12";
-        
-        __weak AWELongPressPanelBaseViewModel *weakViewModel = viewModel;
+        viewModel.duxIconName = customIcons[i];
+        __weak AWELongPressPanelBaseViewModel *weakViewModel = viewModel; // 使用弱引用
         viewModel.action = ^{
-            AWELongPressPanelBaseViewModel *strongViewModel = weakViewModel;
+            AWELongPressPanelBaseViewModel *strongViewModel = weakViewModel; // 在块内转为强引用
             if (strongViewModel) {
                 NSURL *url = nil;
-                NSNumber *fps = nil;
-                
                 switch (strongViewModel.actionType) {
-                    case 100: // 下载音频
+                    case 100:
+                        if (awemeModel.awemeType == 68) {
+                            url = [NSURL URLWithString:currentImageModel.urlList.firstObject];
+                            downloadMedia(url, MediaTypeImage);
+                        } else {
+                            url = [NSURL URLWithString:videoModel.h264URL.originURLList.firstObject];
+                            downloadMedia(url, MediaTypeVideo);
+                        }
+                        break;
+                    case 101:
                         url = [NSURL URLWithString:musicModel.playURL.originURLList.firstObject];
                         downloadMedia(url, MediaTypeAudio);
                         break;
-                        
-                    case 101: // 下载封面图
+                    case 102:
                         url = [NSURL URLWithString:videoModel.coverURL.originURLList.firstObject];
                         downloadMedia(url, MediaTypeImage);
-                        break;
-                        
-                    default: // FPS相关操作
-                        if (awemeModel.awemeType != 68) {
-                            // █ 修改点3：根据actionType查找对应的FPS和URL
-                            fps = @(strongViewModel.actionType - 100 + 30); // 简化示例，实际应从bitrateModels中匹配
-                            NSArray *bitrateModels = videoModel.bitrateModels;
-                            for (NSDictionary *model in bitrateModels) {
-                                if ([model[@"FPS"] isEqualToNumber:fps]) {
-                                    url = [NSURL URLWithString:model[@"play_addr"].urlList.firstObject];
-                                    break;
-                                }
-                            }
-                            
-                            if (url && fps) {
-                                // █ 修改点4：将FPS传递给downloadMedia
-                                downloadMedia(url, MediaTypeVideo, fps);
-                            }
-                        }
                         break;
                 }
             }
         };
         [viewModels addObject:viewModel];
     }
-    
     newGroupModel.groupArr = viewModels;
     return [@[newGroupModel] arrayByAddingObjectsFromArray:originalArray ?: @[]];
 }
