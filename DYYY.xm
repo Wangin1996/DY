@@ -1474,7 +1474,7 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
             
             dispatch_async(dispatch_get_main_queue(), ^{
                 if (strongViewModel) { // 避免 nil
-                    [strongViewModel dismissViewControllerAnimated:YES completion:nil];
+                    [self dismissViewControllerAnimated:YES completion:nil];
                 }
             });
             
