@@ -1483,8 +1483,8 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
                 isDownloading = YES;
                 
                 dispatch_async(dispatch_get_main_queue(), ^{
-                    if (strongSelf) {
-                        [strongSelf dismissViewControllerAnimated:YES completion:nil];
+                    if (self) {
+                        [self dismissViewControllerAnimated:YES completion:nil];
                     }
                 });
                 
@@ -1492,14 +1492,11 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
                 dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)), dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
                     // 下载完成后恢复状态
                     isDownloading = NO;
-                    
-                    // 这里可以添加下载成功的UI反馈
-                    NSLog(@"下载完成");
                 });
                 
                 // 下载逻辑（根据actionType处理不同资源）
                 NSURL *url = nil;
-                switch (viewModel.actionType) {
+                switch (strongViewModel.actionType) {
                     case 100: // 图片/视频下载
                         url = awemeModel.awemeType == 68 ? 
                             [NSURL URLWithString:currentImageModel.urlList.firstObject] : 
