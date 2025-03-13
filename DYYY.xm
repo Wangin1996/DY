@@ -1360,6 +1360,7 @@ typedef NS_ENUM(NSUInteger, MediaType) {
 + (void)showText:(id)arg1;
 @end
 
+UIWindow *window = [UIApplication sharedApplication].keyWindow; // 新增此行
 CGRect safeAreaFrame = window.safeAreaLayoutGuide.layoutFrame;
 CGPoint topCenter = CGPointMake(
     CGRectGetMidX(safeAreaFrame),    // X 轴安全区域中心
