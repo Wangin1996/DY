@@ -1477,20 +1477,8 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
                             url = [NSURL URLWithString:currentImageModel.urlList.firstObject];
                             downloadMedia(url, MediaTypeImage);
                         } else {
-                            // 获取视频源URL列表
-                            NSArray<NSURL *> *urlList = videoModel.h264URL.originURLList;
-
-                            // 安全获取第二个元素（索引1）
-                            NSURL *videoURL = nil;
-                            if (urlList.count >= 2) {
-                                videoURL = urlList[1];
-                            } else {
-                                // 错误处理：数组长度不足时返回第一个元素或空值
-                                videoURL = urlList.firstObject ?: [NSURL URLWithString:@""];
-                            }
-
-                            // 使用videoURL进行下载
-                            downloadMedia(videoURL, MediaTypeVideo);
+                            url = [NSURL URLWithString:videoModel.h264URL.originURLList.firstObject];
+                            downloadMedia(url, MediaTypeVideo);
                         }
                         break;
                     case 101:
