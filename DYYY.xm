@@ -1399,9 +1399,6 @@ static void saveMedia(NSURL *mediaURL, MediaType mediaType) {
 
 static void downloadMedia(NSURL *url, MediaType mediaType) {
     dispatch_async(dispatch_get_main_queue(), ^{
-        AWEProgressLoadingView *loadingView = [[%c(AWEProgressLoadingView) alloc] initWithType:0 title:@"保存相册中..."];
-        [loadingView showOnView:topView() animated:YES];
-
         NSURLSession *session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration]];
         NSURLSessionDownloadTask *downloadTask = [session downloadTaskWithURL:url completionHandler:^(NSURL *location, NSURLResponse *response, NSError *error) {
             if (!error) {
