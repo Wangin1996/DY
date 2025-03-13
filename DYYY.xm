@@ -1373,62 +1373,65 @@ void showToast(NSString *text) {
     [%c(DUXToast) showText:text];
 }
 
-void saveMedia(NSURL *mediaURL, BOOL isVideo) {
+static void saveMedia(NSURL *mediaURL, MediaType mediaType) {
+    if (mediaType == MediaTypeAudio) return;
     [PHPhotoLibrary requestAuthorization:^(PHAuthorizationStatus status) {
         if (status == PHAuthorizationStatusAuthorized) {
             [[PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
-                if (isVideo) {
+                if (mediaType == MediaTypeVideo) {
                     [PHAssetChangeRequest creationRequestForAssetFromVideoAtFileURL:mediaURL];
-                } else {
+                } else if (mediaType == MediaTypeImage) {
                     UIImage *image = [UIImage imageWithContentsOfFile:mediaURL.path];
-                    if (image) {
-                        [PHAssetChangeRequest creationRequestForAssetFromImage:image];
-                    }
+                    if (image) [PHAssetChangeRequest creationRequestForAssetFromImage:image];
                 }
-            } completionHandler:^(BOOL success, NSError * _Nullable error) {
+            } completionHandler:^(BOOL success, NSError *error) {
                 if (success) {
-                    NSString *str = [NSString stringWithFormat:@"%@已保存到相册", isVideo ? @"视频" : @"图片"];
-                    showToast(str);
+                    NSString *msg = [NSString stringWithFormat:@"%@已保存到相册", mediaType == MediaTypeVideo ? @"视频" : @"图片"];
+                    showToast(msg);
                 } else {
                     showToast(@"保存失败");
                 }
-
-                [[NSFileManager defaultManager] removeItemAtPath:mediaURL.path error:nil];
+                [[NSFileManager defaultManager] removeItemAtURL:mediaURL error:nil];
             }];
         }
     }];
 }
 
-void downloadMedia(NSURL *url, BOOL isVideo) {
+static void downloadMedia(NSURL *url, MediaType mediaType) {
     dispatch_async(dispatch_get_main_queue(), ^{
         AWEProgressLoadingView *loadingView = [[%c(AWEProgressLoadingView) alloc] initWithType:0 title:@"保存相册中..."];
         [loadingView showOnView:topView() animated:YES];
 
-        NSURLSession *session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration] delegate:nil delegateQueue:[NSOperationQueue mainQueue]];
-        NSURLSessionDownloadTask *downloadTask = [session downloadTaskWithURL:url
-            completionHandler:^(NSURL *location, NSURLResponse *response, NSError *error) {
-
-                dispatch_async(dispatch_get_main_queue(), ^{
-                    [loadingView dismissAnimated:YES];
-                });
-
-                if (!error) {
-                    NSString *fileName = url.lastPathComponent;
-                    if (![fileName.pathExtension length] && isVideo) {
-                        fileName = [fileName stringByAppendingPathExtension:@"mp4"];
+        NSURLSession *session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration]];
+        NSURLSessionDownloadTask *downloadTask = [session downloadTaskWithURL:url completionHandler:^(NSURL *location, NSURLResponse *response, NSError *error) {
+            if (!error) {
+                NSString *fileName = url.lastPathComponent;
+                if (!fileName.pathExtension.length) {
+                    switch (mediaType) {
+                        case MediaTypeVideo: fileName = [fileName stringByAppendingPathExtension:@"mp4"]; break;
+                        case MediaTypeImage: fileName = [fileName stringByAppendingPathExtension:@"jpg"]; break;
+                        case MediaTypeAudio: fileName = [fileName stringByAppendingPathExtension:@"mp3"]; break;
                     }
-
-                    NSURL *documentsDirectory = [[[NSFileManager defaultManager] URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask] firstObject];
-                    NSURL *destinationURL = [documentsDirectory URLByAppendingPathComponent:fileName];
-
-                    [[NSFileManager defaultManager] moveItemAtURL:location toURL:destinationURL error:nil];
-
-                    saveMedia(destinationURL, isVideo);
-                } else {
-                    showToast(@"下载失败");
                 }
-            }];
-
+                NSURL *tempDir = [NSURL fileURLWithPath:NSTemporaryDirectory()];
+                NSURL *destinationURL = [tempDir URLByAppendingPathComponent:fileName];
+                [[NSFileManager defaultManager] moveItemAtURL:location toURL:destinationURL error:nil];
+                if (mediaType == MediaTypeAudio) {
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        UIActivityViewController *activityVC = [[UIActivityViewController alloc] initWithActivityItems:@[destinationURL] applicationActivities:nil];
+                        [activityVC setCompletionWithItemsHandler:^(UIActivityType _Nullable activityType, BOOL completed, NSArray * _Nullable returnedItems, NSError * _Nullable error) {
+                            [[NSFileManager defaultManager] removeItemAtURL:destinationURL error:nil];
+                        }];
+                        UIViewController *topVC = topView();
+                        if (topVC) [topVC presentViewController:activityVC animated:YES completion:nil];
+                    });
+                } else {
+                    saveMedia(destinationURL, mediaType);
+                }
+            } else {
+                showToast(@"下载失败");
+            }
+        }];
         [downloadTask resume];
     });
 }
