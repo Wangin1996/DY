@@ -41,6 +41,7 @@
 @property (nonatomic, strong, readonly) AWEURLModel *playURL;
 @property (nonatomic, strong, readonly) AWEURLModel *h264URL;
 @property (nonatomic, strong, readonly) AWEURLModel *coverURL;
+@property (nonatomic, copy) NSArray *bitrateModels;
 @end
 
 // AWEImageAlbumImageModel
