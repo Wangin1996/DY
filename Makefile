@@ -1,60 +1,53 @@
-#
-#  DYYY
-#
-#  Copyright (c) 2024 huami. All rights reserved.
-#  Channel: @huamidev
-#  Created on: 2024/10/04
-#
+# 插件：显示编译成功，显示的信息
+PACKAGE_IDENTIFIER = com.huami.dyyy
+PACKAGE_NAME = DYYY
+PACKAGE_VERSION = 2.0.9++
+PACKAGE_ARCHITECTURE = iphoneos-arm64 iphoneos-arm64e
+PACKAGE_REVISION = 1
+PACKAGE_SECTION = Tweaks
+PACKAGE_DEPENDS = firmware (>= 14.0), mobilesubstrate
+PACKAGE_DESCRIPTION = DYYY （原作者：huami1314；功能代码：girl_2023）
 
-TARGET = iphone:clang:latest:15.0
+# 插件：编译时，引用的信息
+define Package/DYYY
+  Package: com.huami.dyyy
+  Name: DYYY
+  Version: 2.0.9++
+  Architecture: iphoneos-arm64 iphoneos-arm64e
+  Author: huami <huami@example.com>
+  Section: Tweaks
+  Depends: firmware (>= 14.0), mobilesubstrate
+endef
+
+# 直接输出到根路径
+export THEOS_PACKAGE_DIR = $(CURDIR)
+
+# TARGET
 ARCHS = arm64 arm64e
+TARGET = iphone:clang:latest:15.0
 
-# 强制使用 Clang 编译器
-export CC = clang
-export CXX = clang++
+# Rootless 插件配置
+export THEOS_PACKAGE_SCHEME = rootless
+THEOS_PACKAGE_INSTALL_PREFIX = /var/jb
 
-# 设置 C/C++ 标准
-CFLAGS += -std=c++11 -fobjc-arc -Wno-error
-CXXFLAGS += -std=c++11 -lstdc++  # 关键：显式链接 C++11 标准库
+# 目标进程
+INSTALL_TARGET_PROCESSES = Aweme
 
-TWEAK_NAME = DYYY
-
-DYYY_FILES = DYYY.xm DYYYSettingViewController.m CityManager.m
-DYYY_CFLAGS = -fobjc-arc -Wno-error
-
-# 禁用 Theos 默认的编译器优化（可选）
-THEOS_CFLAGS += -std=c++11
-THEOS_CXXFLAGS += -std=c++11 -lstdc++
-
+# 引入 Theos 的通用设置
 include $(THEOS)/makefiles/common.mk
 
-
+# 插件名称
 TWEAK_NAME = DYYY
 
-DYYY_FILES = DYYY.xm DYYYSettingViewController.m CityManager.m
+# 源代码文件
+DYYY_FILES = DYYY.x DYYYSettingViewController.m CityManager.m
+
+# 编译选项
 DYYY_CFLAGS = -fobjc-arc -Wno-error
-DYYY_LOGOS_DEFAULT_GENERATOR = internal
-CXXFLAGS += -std=c++11
+DYYY_MMFLAGS = -fobjc-arc -Wno-error -std=c++11
 
-export THEOS_STRICT_LOGOS=0
-export ERROR_ON_WARNINGS=0
-export LOGOS_DEFAULT_GENERATOR=internal
+# 框架
+DYYY_FRAMEWORKS = UIKit Foundation AVFoundation Photos AVKit
 
+# Theos 编译规则
 include $(THEOS_MAKE_PATH)/tweak.mk
-
-THEOS_DEVICE_IP = 192.168.31.222
-THEOS_DEVICE_PORT = 22
-
-clean::
-	@echo -e "\033[31m==>\033[0m Cleaning packages…"
-	@rm -rf .theos packages
-
-after-package::
-	@if [ "$(THEOS_PACKAGE_SCHEME)" = "roothide" ] && [ "$(INSTALL)" = "1" ]; then \
-	echo -e "\033[31m==>\033[0m Installing package to device…"; \
-	DEB_FILE=$$(ls -t packages/*.deb | head -1); \
-	PACKAGE_NAME=$$(basename "$$DEB_FILE" | cut -d'_' -f1); \
-	ssh root@$(THEOS_DEVICE_IP) "rm -rf /tmp/$${PACKAGE_NAME}.deb"; \
-	scp "$$DEB_FILE" root@$(THEOS_DEVICE_IP):/tmp/$${PACKAGE_NAME}.deb; \
-	ssh root@$(THEOS_DEVICE_IP) "dpkg -i --force-overwrite /tmp/$${PACKAGE_NAME}.deb && rm -f /tmp/$${PACKAGE_NAME}.deb"; \
-	fi
