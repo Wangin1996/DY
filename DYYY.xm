@@ -1397,40 +1397,55 @@ static void saveMedia(NSURL *mediaURL, MediaType mediaType) {
     }];
 }
 
+// 下载入口方法（主线程调用）
 static void downloadMedia(NSURL *url, MediaType mediaType) {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        NSURLSession *session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration]];
-        NSURLSessionDownloadTask *downloadTask = [session downloadTaskWithURL:url completionHandler:^(NSURL *location, NSURLResponse *response, NSError *error) {
-            if (!error) {
-                NSString *fileName = url.lastPathComponent;
-                if (!fileName.pathExtension.length) {
-                    switch (mediaType) {
-                        case MediaTypeVideo: fileName = [fileName stringByAppendingPathExtension:@"mp4"]; break;
-                        case MediaTypeImage: fileName = [fileName stringByAppendingPathExtension:@"jpg"]; break;
-                        case MediaTypeAudio: fileName = [fileName stringByAppendingPathExtension:@"mp3"]; break;
-                    }
-                }
-                NSURL *tempDir = [NSURL fileURLWithPath:NSTemporaryDirectory()];
-                NSURL *destinationURL = [tempDir URLByAppendingPathComponent:fileName];
-                [[NSFileManager defaultManager] moveItemAtURL:location toURL:destinationURL error:nil];
-                if (mediaType == MediaTypeAudio) {
-                    dispatch_async(dispatch_get_main_queue(), ^{
-                        UIActivityViewController *activityVC = [[UIActivityViewController alloc] initWithActivityItems:@[destinationURL] applicationActivities:nil];
-                        [activityVC setCompletionWithItemsHandler:^(UIActivityType _Nullable activityType, BOOL completed, NSArray * _Nullable returnedItems, NSError * _Nullable error) {
-                            [[NSFileManager defaultManager] removeItemAtURL:destinationURL error:nil];
-                        }];
-                        UIViewController *topVC = topView();
-                        if (topVC) [topVC presentViewController:activityVC animated:YES completion:nil];
-                    });
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        [[Downloader sharedDownloader] downloadMedia:url 
+                                             mediaType:mediaType 
+                                         completion:^(NSURL *location, NSError *error) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if (!error) {
+                    [self handleDownloadSuccess:url location:location mediaType:mediaType];
                 } else {
-                    saveMedia(destinationURL, mediaType);
+                    [self handleDownloadFailure:error];
                 }
-            } else {
-                showToast(@"下载失败");
-            }
+            });
         }];
-        [downloadTask resume];
     });
+}
+
+// MARK: - 下载成功处理
+- (void)handleDownloadSuccess:(NSURL *)url location:(NSURL *)location mediaType:(MediaType)mediaType {
+    NSURL *destinationURL = [NSTemporaryDirectory().URL appendingPathComponent:url.lastPathComponentWithExtensionForMediaType:mediaType];
+    
+    if ([[NSFileManager defaultManager] moveItemAtURL:location toURL:destinationURL error:nil]) {
+        if (mediaType == MediaTypeAudio) {
+            [self presentShareActivityWithUrl:destinationURL];
+        } else {
+            [self saveMediaWithUrl:destinationURL mediaType:mediaType];
+        }
+    } else {
+        NSLog(@"文件移动失败: %@", error.localizedDescription);
+    }
+}
+
+// MARK: - 下载失败处理
+- (void)handleDownloadFailure:(NSError *)error) {
+    showToast(@"下载失败: %@", error.localizedDescription);
+}
+
+// MARK: - UI 相关方法
+- (void)presentShareActivityWithUrl:(NSURL *)url {
+    UIActivityViewController *activityVC = [[UIActivityViewController alloc] initWithActivityItems:@[url] applicationActivities:nil];
+    [activityVC setCompletionWithItemsHandler:^(UIActivityType _Nullable activityType, BOOL completed, NSArray * _Nullable returnedItems, NSError * _Nullable error) {
+        [[NSFileManager defaultManager] removeItemAtURL:url error:nil];
+    }];
+    UIViewController *topVC = topView();
+    if (topVC) [topVC presentViewController:activityVC animated:YES completion:nil];
+}
+
+- (void)saveMediaWithUrl:(NSURL *)url mediaType:(MediaType)mediaType {
+    // 保存到相册或本地沙盒的逻辑
 }
 
 
