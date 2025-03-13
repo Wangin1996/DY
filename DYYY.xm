@@ -1360,6 +1360,14 @@ typedef NS_ENUM(NSUInteger, MediaType) {
 + (void)showText:(id)arg1;
 @end
 
+@interface AWEProgressLoadingView : UIView
+- (id)initWithType:(NSInteger)arg1 title:(NSString *)arg2;
+- (id)initWithType:(NSInteger)arg1 title:(NSString *)arg2 progressTextFont:(UIFont *)arg3 progressCircleWidth:(NSNumber *)arg4;
+- (void)dismissWithAnimated:(BOOL)arg1;
+- (void)dismissAnimated:(BOOL)arg1;
+- (void)showOnView:(id)arg1 animated:(BOOL)arg2;
+- (void)showOnView:(id)arg1 animated:(BOOL)arg2 afterDelay:(CGFloat)arg3;
+@end
 
 void showToast(NSString *text) {
     [%c(DUXToast) showText:text];
