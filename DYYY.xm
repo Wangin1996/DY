@@ -1459,10 +1459,10 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
     
     // 根据视频类型判断显示按钮
     NSArray *customButtons = awemeModel.awemeType == 68 ? 
-        @[@"下载图片", @"下载所有图片", @"下载音频"] : 
-        @[@"下载视频", @"下载所有图片", @"下载音频"];  
+        @[@"下载当前图片", @"下载所有图片", @"下载音频"] : 
+        @[@"下载视频", @"下载音频"];  
     
-    NSArray *customIcons = @[@"ic_star_outlined_12", @"ic_album_12", @"ic_star_outlined_12"]; 
+    NSArray *customIcons = @[@"ic_star_outlined_12", @"ic_star_outlined_12", @"ic_star_outlined_12"]; 
     
     NSMutableArray *viewModels = [NSMutableArray arrayWithCapacity:customButtons.count];
     for (NSUInteger i = 0; i < customButtons.count; i++) {
