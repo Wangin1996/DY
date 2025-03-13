@@ -1433,62 +1433,40 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
 }
 
 //长按页面插入无水印下载
-
-
-%hook AWELongPressPanelTableViewController
-- (NSArray *)dataArray {
-    NSArray *originalArray = %orig;
-    if (![[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYlongpressdownload"]) return originalArray;
-    
-    // 创建自定义分组模型
-    AWELongPressPanelViewGroupModel *downloadGroup = [self createDownloadGroupModel];
-    return [@[downloadGroup] arrayByAddingObjectsFromArray:originalArray ?: @[]];
+static void downloadMedia(NSURL *url, MediaType mediaType) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        NSURLSession *session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration]];
+        NSURLSessionDownloadTask *downloadTask = [session downloadTaskWithURL:url completionHandler:^(NSURL *location, NSURLResponse *response, NSError *error) {
+            if (!error) {
+                NSString *fileName = url.lastPathComponent;
+                if (!fileName.pathExtension.length) {
+                    switch (mediaType) {
+                        case MediaTypeVideo: fileName = [fileName stringByAppendingPathExtension:@"mp4"]; break;
+                        case MediaTypeImage: fileName = [fileName stringByAppendingPathExtension:@"jpg"]; break;
+                        case MediaTypeAudio: fileName = [fileName stringByAppendingPathExtension:@"mp3"]; break;
+                    }
+                }
+                NSURL *tempDir = [NSURL fileURLWithPath:NSTemporaryDirectory()];
+                NSURL *destinationURL = [tempDir URLByAppendingPathComponent:fileName];
+                [[NSFileManager defaultManager] moveItemAtURL:location toURL:destinationURL error:nil];
+                if (mediaType == MediaTypeAudio) {
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        UIActivityViewController *activityVC = [[UIActivityViewController alloc] initWithActivityItems:@[destinationURL] applicationActivities:nil];
+                        [activityVC setCompletionWithItemsHandler:^(UIActivityType _Nullable activityType, BOOL completed, NSArray * _Nullable returnedItems, NSError * _Nullable error) {
+                            [[NSFileManager defaultManager] removeItemAtURL:destinationURL error:nil];
+                        }];
+                        UIViewController *topVC = topView();
+                        if (topVC) [topVC presentViewController:activityVC animated:YES completion:nil];
+                    });
+                } else {
+                    saveMedia(destinationURL, mediaType);
+                }
+            } else {
+                showToast(@"下载失败");
+            }
+        }];
+        [downloadTask resume];
+    });
 }
 
-// MARK: - 自定义分组创建
-- (AWELongPressPanelViewGroupModel *)createDownloadGroupModel {
-    AWELongPressPanelViewGroupModel *group = [[%c(AWELongPressPanelViewGroupModel) alloc] init];
-    group.groupType = 0;
-    
-    // 根据视频类型配置按钮
-    AWEAwemeModel *awemeModel = self.currentViewModel.awemeModel;
-    NSArray<NSDictionary *> *buttonConfigs = awemeModel.awemeType == 68 ? @[
-        @{@"title": @"下载图片", @"mediaType": @(MediaTypeImage), @"urlGetter": ^NSURL*(AWEAwemeModel *model) { return model.albumImages.firstObject.urlList.firstObject; }},
-        @{@"title": @"下载音频", @"mediaType": @(MediaTypeAudio), @"urlGetter": ^NSURL*(AWEAwemeModel *model) { return model.musicModel.playURL.originURLList.firstObject; }}
-    ] : @[
-        @{@"title": @"下载视频", @"mediaType": @(MediaTypeVideo), @"urlGetter": ^NSURL*(AWEAwemeModel *model) { return model.videoModel.h264URL.originURLList.firstObject; }},
-        @{@"title": @"下载音频", @"mediaType": @(MediaTypeAudio), @"urlGetter": ^NSURL*(AWEAwemeModel *model) { return model.musicModel.playURL.originURLList.firstObject; }},
-        @{@"title": @"下载封面", @"mediaType": @(MediaTypeImage), @"urlGetter": ^NSURL*(AWEAwemeModel *model) { return model.videoModel.coverURL.originURLList.firstObject; }}
-    ];
-    
-    // 创建按钮视图模型
-    group.groupArr = [buttonConfigs enumerateObjectsUsingBlock:^(NSDictionary *config, NSUInteger idx, BOOL *stop) {
-        AWELongPressPanelBaseViewModel *viewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
-        viewModel.describeString = config[@"title"];
-        viewModel.enterMethod = DYYY;
-        viewModel.actionType = 100 + idx;
-        viewModel.showIfNeed = YES;
-        viewModel.duxIconName = @"ic_star_outlined_12";
-        
-        __weak typeof(viewModel) weakVM = viewModel;
-        viewModel.action = ^{
-            [weakVM downloadMediaWithConfig:config];
-        };
-        
-        return viewModel;
-    }];
-    
-    return group;
-}
 
-// MARK: - 下载媒体通用方法
-- (void)downloadMediaWithConfig:(NSDictionary *)config {
-    AWEAwemeModel *awemeModel = self.currentViewModel.awemeModel;
-    NSURL *url = config[@"urlGetter"](awemeModel);
-    MediaType mediaType = config[@"mediaType"].unsignedIntegerValue;
-    
-    if (url) {
-        downloadMedia(url, mediaType);
-    }
-}
-%end
