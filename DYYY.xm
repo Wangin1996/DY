@@ -1442,22 +1442,27 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
     NSArray *originalArray = %orig;
     if (![[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYlongpressdownload"]) return originalArray;
     
-    // 新增分组模型
+    // 新增组模型
     AWELongPressPanelViewGroupModel *newGroupModel = [[%c(AWELongPressPanelViewGroupModel) alloc] init];
     newGroupModel.groupType = 0;
     
     AWELongPressPanelBaseViewModel *tempViewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
     AWEAwemeModel *awemeModel = tempViewModel.awemeModel;
+    AWEVideoModel *videoModel = awemeModel.video;
+    AWEMusicModel *musicModel = awemeModel.music;
     
-    // 根据帖子类型配置按钮
-    NSArray *customButtons;
-    if (awemeModel.awemeType == 68) { // 图片帖子
-        customButtons = @[@"下载图片", @"下载所有图片", @"下载音频"]; // 新增按钮
-    } else {
-        customButtons = @[@"下载视频", @"下载音频"];
+    // 新增：获取当前选中的图片模型（关键修复）
+    AWEImageAlbumImageModel *currentImageModel = nil;
+    if (awemeModel.albumImages.count > 0) {
+        currentImageModel = awemeModel.albumImages[awemeModel.currentImageIndex - 1]; // 根据抖音官方索引逻辑
     }
     
-    NSArray *customIcons = @[@"ic_star_outlined_12", @"ic_star_outlined_12", @"ic_star_outlined_12"]; // 扩展图标数组
+    // 根据视频类型判断显示按钮
+    NSArray *customButtons = awemeModel.awemeType == 68 ? 
+        @[@"下载图片", @"下载所有图片", @"下载音频"] : 
+        @[@"下载视频", @"下载所有图片", @"下载音频"];  
+    
+    NSArray *customIcons = @[@"ic_star_outlined_12", @"ic_album_12", @"ic_star_outlined_12"]; 
     
     NSMutableArray *viewModels = [NSMutableArray arrayWithCapacity:customButtons.count];
     for (NSUInteger i = 0; i < customButtons.count; i++) {
@@ -1474,22 +1479,29 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
             if (strongViewModel) {
                 NSURL *url = nil;
                 switch (strongViewModel.actionType) {
-                    case 100: // 原有图片下载
-                        url = [NSURL URLWithString:currentImageModel.urlList.firstObject];
-                        downloadMedia(url, MediaTypeImage);
-                        break;
-                    case 101: // 原有音频下载
-                        url = [NSURL URLWithString:musicModel.playURL.originURLList.firstObject];
-                        downloadMedia(url, MediaTypeAudio);
-                        break;
-                    case 102: // 新增全图下载
+                    case 100: // 下载图片（修复后）
                         if (awemeModel.awemeType == 68) {
-                            NSArray<AWEImageAlbumImageModel *> *allImages = awemeModel.albumImages;
-                            [allImages enumerateObjectsUsingBlock:^(AWEImageAlbumImageModel *imageModel, NSUInteger idx, BOOL *stop) {
+                            // 确保 currentImageModel 已赋值
+                            if (currentImageModel && currentImageModel.urlList.count > 0) {
+                                url = [NSURL URLWithString:currentImageModel.urlList.firstObject];
+                                downloadMedia(url, MediaTypeImage);
+                            }
+                        } else {
+                            url = [NSURL URLWithString:videoModel.h264URL.originURLList.firstObject];
+                            downloadMedia(url, MediaTypeVideo);
+                        }
+                        break;
+                    case 101: // 下载所有图片
+                        [awemeModel.albumImages enumerateObjectsUsingBlock:^(AWEImageAlbumImageModel *imageModel, NSUInteger idx, BOOL *stop) {
+                            if (imageModel.urlList.count > 0) {
                                 NSURL *imageUrl = [NSURL URLWithString:imageModel.urlList.firstObject];
                                 downloadMedia(imageUrl, MediaTypeImage);
-                            }];
-                        }
+                            }
+                        }];
+                        break;
+                    case 102: // 下载音频
+                        url = [NSURL URLWithString:musicModel.playURL.originURLList.firstObject];
+                        downloadMedia(url, MediaTypeAudio);
                         break;
                 }
             }
