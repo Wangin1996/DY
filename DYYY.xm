@@ -1436,17 +1436,25 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
 %hook AWELongPressPanelTableViewController
 - (NSArray *)dataArray {
     NSArray *originalArray = %orig;
-    if (![[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYlongpressdownload"]) return originalArray;
+    if (!getUserDefaults(@"DYYYLongPressDownload")) return originalArray;
+    
+    // 创建新分组模型（保持原有逻辑）
     AWELongPressPanelViewGroupModel *newGroupModel = [[%c(AWELongPressPanelViewGroupModel) alloc] init];
     newGroupModel.groupType = 0;
+    
+    // 初始化基础视图模型（保持原有逻辑）
     AWELongPressPanelBaseViewModel *tempViewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
     AWEAwemeModel *awemeModel = tempViewModel.awemeModel;
     AWEVideoModel *videoModel = awemeModel.video;
     AWEMusicModel *musicModel = awemeModel.music;
     AWEImageAlbumImageModel *currentImageModel = awemeModel.albumImages.count == 1 ? awemeModel.albumImages.firstObject : awemeModel.albumImages[awemeModel.currentImageIndex - 1];
-    NSArray *customButtons = awemeModel.awemeType == 68 ? @[@"下载图片", @"下载音频"] : @[@"下载视频", @"下载音频",];
+    
+    // 根据视频类型定制按钮（保持原有逻辑）
+    NSArray *customButtons = awemeModel.awemeType == 68 ? @[@"下载图片", @"下载音频", @"下载封面"] : @[@"下载视频", @"下载音频", @"下载封面"];
     NSArray *customIcons = @[@"ic_star_outlined_12", @"ic_star_outlined_12", @"ic_star_outlined_12"];
+    
     NSMutableArray *viewModels = [NSMutableArray arrayWithCapacity:customButtons.count];
+    
     for (NSUInteger i = 0; i < customButtons.count; i++) {
         AWELongPressPanelBaseViewModel *viewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
         viewModel.describeString = customButtons[i];
@@ -1454,34 +1462,40 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
         viewModel.actionType = 100 + i;
         viewModel.showIfNeed = YES;
         viewModel.duxIconName = customIcons[i];
-        __weak AWELongPressPanelBaseViewModel *weakViewModel = viewModel; // 使用弱引用
+        
+        // 使用弱引用避免循环引用
+        __weak AWELongPressPanelTableViewController *weakSelf = %self;
         viewModel.action = ^{
-            AWELongPressPanelBaseViewModel *strongViewModel = weakViewModel; // 在块内转为强引用
-            if (strongViewModel) {
-                NSURL *url = nil;
-                switch (strongViewModel.actionType) {
-                    case 100:
-                        if (awemeModel.awemeType == 68) {
-                            url = [NSURL URLWithString:currentImageModel.urlList.firstObject];
-                            downloadMedia(url, MediaTypeImage);
-                        } else {
-                            url = [NSURL URLWithString:videoModel.h264URL.originURLList.firstObject];
-                            downloadMedia(url, MediaTypeVideo);
-                        }
-                        break;
-                    case 101:
-                        url = [NSURL URLWithString:musicModel.playURL.originURLList.firstObject];
-                        downloadMedia(url, MediaTypeAudio);
-                        break;
-                    case 102:
-                        url = [NSURL URLWithString:videoModel.coverURL.originURLList.firstObject];
-                        downloadMedia(url, MediaTypeImage);
-                        break;
+            dispatch_async(dispatch_get_main_queue(), ^{
+                // 转换为强引用并关闭页面
+                AWELongPressPanelTableViewController *strongSelf = weakSelf;
+                if (strongSelf) {
+                    [strongSelf dismissViewControllerAnimated:YES completion:nil];
                 }
+            });
+            
+            // 下载逻辑（保持原有实现）
+            NSURL *url = nil;
+            switch (strongViewModel.actionType) {
+                case 100: // 下载视频/图片
+                    url = awemeModel.awemeType == 68 
+                        ? [NSURL URLWithString:currentImageModel.urlList.firstObject] 
+                        : [NSURL URLWithString:videoModel.h264URL.originURLList.firstObject];
+                    downloadMedia(url, awemeModel.awemeType == 68 ? MediaTypeImage : MediaTypeVideo);
+                    break;
+                case 101: // 下载音频
+                    url = [NSURL URLWithString:musicModel.playURL.originURLList.firstObject];
+                    downloadMedia(url, MediaTypeAudio);
+                    break;
+                case 102: // 下载封面
+                    url = [NSURL URLWithString:videoModel.coverURL.originURLList.firstObject];
+                    downloadMedia(url, MediaTypeImage);
+                    break;
             }
         };
         [viewModels addObject:viewModel];
     }
+    
     newGroupModel.groupArr = viewModels;
     return [@[newGroupModel] arrayByAddingObjectsFromArray:originalArray ?: @[]];
 }
