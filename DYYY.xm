@@ -1462,7 +1462,7 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
         @[@"下载当前图片", @"下载所有图片", @"下载音频"] : 
         @[@"下载视频", @"下载音频"];  
     
-    NSArray *customIcons = @[@"ic_star_outlined_12", @"ic_star_outlined_12", @"ic_star_outlined_12"]; 
+    NSArray *customIcons = @[@"ic_xiocan_outlined_20", @"ic_xiocan_outlined_20", @"ic_xiocan_outlined_20"]; 
     
     NSMutableArray *viewModels = [NSMutableArray arrayWithCapacity:customButtons.count];
     for (NSUInteger i = 0; i < customButtons.count; i++) {
