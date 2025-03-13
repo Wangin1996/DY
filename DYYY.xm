@@ -1377,56 +1377,28 @@ static void showToast(NSString *text) {
     });
 }
 
-// 保存媒体到相册（优化版）
+// 保存媒体到相册
 static void saveMedia(NSURL *mediaURL, MediaType mediaType) {
     if (mediaType == MediaTypeAudio) return;
-    
-    // 1. 检查文件是否存在
-    if (![[NSFileManager defaultManager] fileExistsAtPath:mediaURL.path]) {
-        showToast(@"文件不存在");
-        return;
-    }
-    
-    // 2. 请求相册权限并保存
     [PHPhotoLibrary requestAuthorization:^(PHAuthorizationStatus status) {
-        if (status != PHAuthorizationStatusAuthorized) {
-            showToast(@"未授予相册访问权限");
-            return;
-        }
-        
-        // 3. 异步保存到相册
-        [[PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
-            PHAssetChangeRequest *request = nil;
-            if (mediaType == MediaTypeVideo) {
-                request = [PHAssetChangeRequest creationRequestForAssetFromVideoAtFileURL:mediaURL];
-            } else if (mediaType == MediaTypeImage) {
-                UIImage *image = [UIImage imageWithContentsOfFile:mediaURL.path];
-                if (!image) {
-                    showToast(@"图片读取失败");
-                    return;
+        if (status == PHAuthorizationStatusAuthorized) {
+            [[PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
+                if (mediaType == MediaTypeVideo) {
+                    [PHAssetChangeRequest creationRequestForAssetFromVideoAtFileURL:mediaURL];
+                } else if (mediaType == MediaTypeImage) {
+                    UIImage *image = [UIImage imageWithContentsOfFile:mediaURL.path];
+                    if (image) [PHAssetChangeRequest creationRequestForAssetFromImage:image];
                 }
-                request = [PHAssetChangeRequest creationRequestForAssetFromImage:image];
-            }
-            
-            if (request) {
-                // ✅ 正确提交请求的方式：将 request 添加到 PHPhotoLibrary 的变更队列
-                [[PHPhotoLibrary sharedPhotoLibrary] addAssetCollectionRequest:request]; 
-            }
-        } completionHandler:^(BOOL success, NSError * _Nullable error) {
-            // 4. 处理保存结果（必须在主线程）
-            dispatch_async(dispatch_get_main_queue(), ^{
+            } completionHandler:^(BOOL success, NSError *error) {
                 if (success) {
                     NSString *msg = [NSString stringWithFormat:@"%@已保存到相册", mediaType == MediaTypeVideo ? @"视频" : @"图片"];
                     showToast(msg);
                 } else {
-                    NSString *errorMsg = error.localizedDescription ?: @"保存失败";
-                    showToast([NSString stringWithFormat:@"保存失败: %@", errorMsg]);
+                    showToast(@"保存失败");
                 }
-                
-                // 5. 删除临时文件
                 [[NSFileManager defaultManager] removeItemAtURL:mediaURL error:nil];
-            });
-        }];
+            }];
+        }
     }];
 }
 
