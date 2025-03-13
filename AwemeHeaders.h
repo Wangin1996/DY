@@ -1,3 +1,49 @@
+// AWELongPressPanelBaseViewModel
+@interface AWELongPressPanelBaseViewModel : NSObject
+@property (nonatomic, strong) AWEAwemeModel *awemeModel;
+@property (nonatomic, strong) NSString *enterMethod;
+@property (nonatomic, assign) NSUInteger actionType;
+@property (nonatomic, strong) NSString *duxIconName;
+@property (nonatomic, strong) NSString *describeString;
+@property (nonatomic, assign) BOOL showIfNeed;
+@property (nonatomic, copy) void (^action)(void);
+@end
+
+// AWELongPressPanelViewGroupModel
+@interface AWELongPressPanelViewGroupModel : NSObject
+@property (nonatomic, assign) NSUInteger groupType;
+@property (nonatomic, strong) NSArray<AWELongPressPanelBaseViewModel *> *groupArr;
+@end
+
+// AWELongPressPanelTableViewController
+@interface AWELongPressPanelTableViewController : UIViewController
+- (NSArray *)dataArray;
+@end
+
+// AWEURLModel
+@interface AWEURLModel : NSObject
+@property (nonatomic, copy) NSArray *originURLList;
+@end
+
+// AWEMusicModel
+@interface AWEMusicModel : NSObject
+@property (nonatomic, strong, readonly) AWEURLModel *playURL;
+@end
+
+// AWEVideoModel
+@interface AWEVideoModel : NSObject
+@property (nonatomic, strong, readonly) AWEURLModel *playURL;
+@property (nonatomic, strong, readonly) AWEURLModel *h264URL;
+@property (nonatomic, strong, readonly) AWEURLModel *coverURL;
+@end
+
+// AWEImageAlbumImageModel
+@interface AWEImageAlbumImageModel : NSObject
+@property (nonatomic, copy) NSArray *urlList;
+@end
+
+//以上为新增
+
 @interface AWESettingItemModel : NSObject
 @property (nonatomic, strong, readwrite) NSString *identifier;
 @property (nonatomic, strong, readwrite) NSString *title;
@@ -119,6 +165,16 @@
 @property (nonatomic, copy) NSString *cityCode;
 @property (nonatomic, assign) BOOL isAds;
 @property (nonatomic, strong) AWEAwemeModel *currentAweme;
+@property (nonatomic, strong, readonly) AWEVideoModel *video;
+@property (nonatomic, strong) AWEMusicModel *music;
+@property (nonatomic, strong) NSArray<AWEImageAlbumImageModel *> *albumImages;
+@property (nonatomic, assign) NSInteger awemeType;
+@property (nonatomic, assign) NSInteger currentImageIndex;
+- (void)live_callInitWithDictyCategoryMethod:(id)arg1;
++ (id)liveStreamURLJSONTransformer;
++ (id)relatedLiveJSONTransformer;
++ (id)rawModelFromLiveRoomModel:(id)arg1;
++ (id)aweLiveRoom_subModelPropertyKey;
 @end
 
 @interface AWEPlayInteractionTimestampElement : UIView
