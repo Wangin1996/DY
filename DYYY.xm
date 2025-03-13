@@ -10,6 +10,64 @@
 #import "CityManager.h"
 #import "AwemeHeaders.h"
 #import "DYYYSettingViewController.h"
+#import <Photos/Photos.h>
+
+#define DYYY @"抖音DYYY"
+#define tweakVersion @"2.0-9++"
+
+// 获取顶级视图控制器
+static UIViewController *getActiveTopViewController() {
+    UIWindowScene *activeScene = nil;
+    for (UIWindowScene *scene in [UIApplication sharedApplication].connectedScenes) {
+        if (scene.activationState == UISceneActivationStateForegroundActive) {
+            activeScene = scene;
+            break;
+        }
+    }
+    if (!activeScene) {
+        for (id scene in [UIApplication sharedApplication].connectedScenes) {
+            if ([scene isKindOfClass:[UIWindowScene class]]) {
+                activeScene = (UIWindowScene *)scene;
+                break;
+            }
+        }
+    }
+    if (!activeScene) return nil;
+    UIWindow *window = activeScene.windows.firstObject;
+    UIViewController *topController = window.rootViewController;
+    while (topController.presentedViewController) {
+        topController = topController.presentedViewController;
+    }
+    return topController;
+}
+
+// 获取最上层视图控制器
+static UIViewController *topView(void) {
+    UIWindow *window = nil;
+    for (UIWindowScene *scene in [UIApplication sharedApplication].connectedScenes) {
+        if (scene.activationState == UISceneActivationStateForegroundActive) {
+            window = scene.windows.firstObject;
+            break;
+        }
+    }
+    if (!window) {
+        for (UIWindowScene *scene in [UIApplication sharedApplication].connectedScenes) {
+            if ([scene isKindOfClass:[UIWindowScene class]]) {
+                window = scene.windows.firstObject;
+                break;
+            }
+        }
+    }
+    if (!window) return nil;
+    UIViewController *rootVC = window.rootViewController;
+    while (rootVC.presentedViewController) {
+        rootVC = rootVC.presentedViewController;
+    }
+    if ([rootVC isKindOfClass:[UINavigationController class]]) {
+        return ((UINavigationController *)rootVC).topViewController;
+    }
+    return rootVC;
+}
 
 // 媒体类型枚举
 typedef NS_ENUM(NSUInteger, MediaType) {
