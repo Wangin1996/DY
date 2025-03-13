@@ -1438,16 +1438,39 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
 - (NSArray *)dataArray {
     NSArray *originalArray = %orig;
     if (![[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYlongpressdownload"]) return originalArray;
+    
+    // 判断是否存在多个图片
+    BOOL hasMultipleImages = awemeModel.albumImages.count >= 2;
+    
     AWELongPressPanelViewGroupModel *newGroupModel = [[%c(AWELongPressPanelViewGroupModel) alloc] init];
     newGroupModel.groupType = 0;
+    
     AWELongPressPanelBaseViewModel *tempViewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
     AWEAwemeModel *awemeModel = tempViewModel.awemeModel;
     AWEVideoModel *videoModel = awemeModel.video;
     AWEMusicModel *musicModel = awemeModel.music;
-    AWEImageAlbumImageModel *currentImageModel = awemeModel.albumImages.count == 1 ? awemeModel.albumImages.firstObject : awemeModel.albumImages[awemeModel.currentImageIndex - 1];
-    NSArray *customButtons = awemeModel.awemeType == 68 ? @[@"下载图片", @"下载音频"] : @[@"下载视频", @"下载音频",];
-    NSArray *customIcons = @[@"ic_star_outlined_12", @"ic_star_outlined_12", @"ic_star_outlined_12"];
+    
+    // 创建下载按钮数组
+    NSArray *customButtons = @"";
+    NSArray *customIcons = @"";
+    
+    if (awemeModel.awemeType == 68) {
+        // 图片专辑类型
+        customButtons = @[@"下载图片", @"下载音频"];
+        customIcons = @[@"ic_star_outlined_12", @"ic_star_outlined_12"];
+        
+        if (hasMultipleImages) {
+            customButtons = [customButtons arrayByAddingObject:@"下载所有图片"];
+            customIcons = [customIcons arrayByAddingObject:@"ic_download_all_12"];
+        }
+    } else {
+        // 视频类型
+        customButtons = @[@"下载视频", @"下载音频"];
+        customIcons = @[@"ic_star_outlined_12", @"ic_star_outlined_12"];
+    }
+    
     NSMutableArray *viewModels = [NSMutableArray arrayWithCapacity:customButtons.count];
+    
     for (NSUInteger i = 0; i < customButtons.count; i++) {
         AWELongPressPanelBaseViewModel *viewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
         viewModel.describeString = customButtons[i];
@@ -1455,13 +1478,14 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
         viewModel.actionType = 100 + i;
         viewModel.showIfNeed = YES;
         viewModel.duxIconName = customIcons[i];
-        __weak AWELongPressPanelBaseViewModel *weakViewModel = viewModel; // 使用弱引用
+        
+        __weak AWELongPressPanelBaseViewModel *weakViewModel = viewModel;
         viewModel.action = ^{
-            AWELongPressPanelBaseViewModel *strongViewModel = weakViewModel; // 在块内转为强引用
+            AWELongPressPanelBaseViewModel *strongViewModel = weakViewModel;
             if (strongViewModel) {
                 NSURL *url = nil;
                 switch (strongViewModel.actionType) {
-                    case 100:
+                    case 100: // 单个图片/视频下载
                         if (awemeModel.awemeType == 68) {
                             url = [NSURL URLWithString:currentImageModel.urlList.firstObject];
                             downloadMedia(url, MediaTypeImage);
@@ -1470,16 +1494,87 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
                             downloadMedia(url, MediaTypeVideo);
                         }
                         break;
-                    case 101:
+                    case 101: // 音频下载
                         url = [NSURL URLWithString:musicModel.playURL.originURLList.firstObject];
                         downloadMedia(url, MediaTypeAudio);
+                        break;
+                    case 102: // 批量下载所有图片
+                        [self downloadAllImages:awemeModel.albumImages];
                         break;
                 }
             }
         };
         [viewModels addObject:viewModel];
     }
+    
     newGroupModel.groupArr = viewModels;
     return [@[newGroupModel] arrayByAddingObjectsFromArray:originalArray ?: @[]];
 }
 %end
+
+// 新增批量下载方法
+- (void)downloadAllImages:(NSArray<AWEImageAlbumImageModel *> *)imageModels {
+    NSMutableArray *urls = [NSMutableArray array];
+    for (AWEImageAlbumImageModel *model in imageModels) {
+        if (model.urlList.count > 0) {
+            [urls addObject:model.urlList.firstObject];
+        }
+    }
+    
+    if (urls.count == 0) return;
+    
+    // 显示下载进度提示
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:nil message:@"正在批量下载图片..." preferredStyle:UIAlertControllerStyleAlert];
+    [self presentViewController:alert animated:YES completion:nil];
+    
+    // 使用NSURLSession进行批量下载
+    NSURLSession *session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSession]];
+    NSMutableArray *tasks = [NSMutableArray array];
+    
+    for (NSURL *url in urls) {
+        NSURLRequest *request = [NSURLRequest requestWithURL:url];
+        NSURLSessionDownloadTask *task = [session downloadTaskWithRequest:request];
+        [tasks addObject:task];
+        
+        task.downloadProgress = ^(NSProgress * _Nonnull progress) {
+            // 更新总进度
+            float totalProgress = 0.0;
+            for (NSURLSessionDownloadTask *t in tasks) {
+                totalProgress += t.downloadProgress.floatValue;
+            }
+            totalProgress /= tasks.count;
+            
+            dispatch_async(dispatch_get_main_queue(), ^{
+                alert.message = [NSString stringWithFormat:@"下载中 (%.0f%%)", totalProgress * 100];
+            });
+        };
+        
+        task.completionHandler = ^(NSURL *location, NSURLResponse *response, NSError *error) {
+            if (!error) {
+                // 保存文件
+                NSString *documentsPath = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES).firstObject stringByAppendingPathComponent:@"Downloads"];
+                if (![[NSFileManager defaultManager] directoryExistsAtPath:documentsPath]) {
+                    [[NSFileManager defaultManager] createDirectoryAtPath:documentsPath withIntermediateDirectories:YES attributes:nil error:nil];
+                }
+                
+                NSString *fileName = [url.lastPathComponent stringByReplacingOccurrencesOfString:@"/" withString:@""];
+                NSString *savePath = [documentsPath stringByAppendingPathComponent:fileName];
+                [[NSFileManager defaultManager] moveItemAtPath:location.path toPath:savePath error:nil];
+            }
+            
+            // 检查是否所有任务完成
+            if ([tasks indexOfObject:task] == tasks.count - 1) {
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    [alert dismissViewControllerAnimated:YES completion:^{
+                        UIAlertController *successAlert = [UIAlertController alertControllerWithTitle:@"下载完成" message:@"所有图片已保存至下载文件夹" preferredStyle:UIAlertControllerStyleAlert];
+                        UIAlertAction *okAction = [UIAlertAction actionWithTitle:@"确定" style:UIAlertActionStyleDefault handler:nil];
+                        [successAlert addAction:okAction];
+                        [self presentViewController:successAlert animated:YES completion:nil];
+                    }];
+                });
+            }
+        };
+        
+        [session resumeTask:task];
+    }
+}
