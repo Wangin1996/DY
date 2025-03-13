@@ -1422,15 +1422,9 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
             NSURL *destinationURL = [tempDir URLByAppendingPathComponent:fileName];
             [[NSFileManager defaultManager] moveItemAtURL:location toURL:destinationURL error:nil];
             
-            // 显示成功提示（保留在主线程）
-		UIAlertController *loadingAlert = [UIAlertController alertControllerWithTitle:@"下载成功" message:nil preferredStyle:UIAlertControllerStyleAlert];
-		UIViewController *topVC = topView();
-		if (topVC) [topVC presentViewController:loadingAlert animated:YES completion:nil];
+            showToast(@"下载成功");
         } else {
-            // 显示失败提示（保留在主线程）
-		UIAlertController *loadingAlert = [UIAlertController alertControllerWithTitle:@"下载失败" message:nil preferredStyle:UIAlertControllerStyleAlert];
-		UIViewController *topVC = topView();
-		if (topVC) [topVC presentViewController:loadingAlert animated:YES completion:nil];
+	    showToast(@"下载失败");
         }
     }];
     [downloadTask resume];
