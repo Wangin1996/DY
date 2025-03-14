@@ -1378,28 +1378,76 @@ static void systemVibrate() {
     AudioServicesPlaySystemSound(kSystemSoundID_Vibrate);
 }
 
+static NSMutableArray<NSDictionary *> *pendingOperations = nil; // 全局 pending 操作队列
+
 static void saveMedia(NSURL *mediaURL, MediaType mediaType) {
     if (mediaType == MediaTypeAudio) return;
-    [PHPhotoLibrary requestAuthorization:^(PHAuthorizationStatus status) {
-        if (status == PHAuthorizationStatusAuthorized) {
-            [[PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
-                if (mediaType == MediaTypeVideo) {
-                    [PHAssetChangeRequest creationRequestForAssetFromVideoAtFileURL:mediaURL];
-                } else if (mediaType == MediaTypeImage) {
-                    UIImage *image = [UIImage imageWithContentsOfFile:mediaURL.path];
-                    if (image) [PHAssetChangeRequest creationRequestForAssetFromImage:image];
-                }
-            } completionHandler:^(BOOL success, NSError *error) {
-                if (success) {
-                    NSString *msg = [NSString stringWithFormat:@"%@已保存到相册", mediaType == MediaTypeVideo ? @"视频" : @"图片"];
-		    systemVibrate();
-                    showToast(msg);
-                } else {
-                    showToast(@"保存失败");
-                }
-                [[NSFileManager defaultManager] removeItemAtURL:mediaURL error:nil];
-            }];
+    
+    // 1. 确保在主线程操作
+    dispatch_async(dispatch_get_main_queue(), ^{
+        // 2. 将当前操作加入队列
+        NSMutableDictionary *operation = @{
+            @"url": mediaURL,
+            @"type": @(mediaType),
+            @"completed": @NO
+        };
+        [pendingOperations addObject:operation];
+        
+        // 3. 如果没有正在处理的事务，开始处理队列
+        if (![[PHPhotoLibrary sharedPhotoLibrary] isPerformingChanges]) {
+            [self processPendingOperations];
         }
+    });
+}
+
+// MARK: - 队列处理逻辑
++ (void)processPendingOperations {
+    __weak typeof(self) weakSelf = self;
+    [[PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
+        NSMutableArray<PHAssetChangeRequest *> *requests = NSMutableArray.array;
+        
+        // 4. 处理队列中所有未完成操作
+        for (NSUInteger i = 0; i < pendingOperations.count; i++) {
+            NSDictionary *op = pendingOperations[i];
+            NSURL *url = op[@"url"];
+            MediaType type = [op[@"type"] integerValue];
+            
+            PHAssetChangeRequest *request = nil;
+            if (type == MediaTypeVideo) {
+                request = [PHAssetChangeRequest creationRequestForAssetFromVideoAtFileURL:url];
+            } else if (type == MediaTypeImage) {
+                UIImage *image = [UIImage imageWithContentsOfFile:url.path];
+                if (image) {
+                    request = [PHAssetChangeRequest creationRequestForAssetFromImage:image];
+                }
+            }
+            if (request) {
+                requests addObject(request);
+                pendingOperations[i][@"completed"] = @YES; // 标记为已处理
+            }
+        }
+        
+        // 5. 获取最后一个资产的引用（可选）
+        PHAsset *lastAsset = requests.lastObject.asset;
+        PHCollectionReference *collectionRef = [PHAssetCollectionKey collectionKeyWithSubcollectionIdentifier:@""];
+        [PHAssetCollectionChangeRequest collectionChangeRequestForCollection:collectionRef].addAssets(@[lastAsset]);
+    } completionHandler:^(BOOL success, NSError * _Nullable error) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            // 6. 统一处理结果
+            if (success && requests.count > 0) {
+                NSString *count = [NSString stringWithFormat:@"%lu", (unsigned long)requests.count];
+                NSString *mediaTypeStr = requests.count > 1 ? @"图片/视频" : 
+                                       (requests.firstObject.asset.mediaType == PHAssetMediaTypeImage ? @"图片" : @"视频");
+                NSString *msg = [NSString stringWithFormat:@"%@已保存到相册", mediaTypeStr];
+                systemVibrate();
+                showToast(msg);
+            } else {
+                showToast(@"保存失败");
+            }
+            
+            // 7. 清理已完成操作
+            [pendingOperations removeObjectsAtIndexes:NSMakeRange(0, requests.count)];
+        });
     }];
 }
 
