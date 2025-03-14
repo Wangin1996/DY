@@ -1369,8 +1369,7 @@ void showToast(NSString *text, BOOL isError) {
 
 
 
-#import <MobileCoreServices/MobileCoreServices.h>
-#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
+#import <CoreServices/CoreServices.h>
 
 
 
@@ -1564,8 +1563,8 @@ static void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
                 }];
             }];
             
-            UIViewController *topVC = topViewController();
-            [topVC presentViewController:activityVC animated:YES completion:nil];
+            UIViewController *topVC = topView(); // 需要实现获取顶层视图控制器的方法
+                [topVC presentViewController:activityVC animated:YES completion:nil];
         } else {
             // 保存到相册
             saveMedia(tempFiles, mediaType);
@@ -1576,19 +1575,27 @@ static void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
 // MARK: - MIME类型转换
 static NSString* mimeTypeToExtension(NSString *mimeType, MediaType mediaType) {
     if (@available(iOS 14.0, *)) {
+        // iOS 14+ 使用新API
+        #if __has_include(<UniformTypeIdentifiers/UniformTypeIdentifiers.h>)
         UTType *type = [UTType typeWithMIMEType:mimeType];
         return type.preferredFilenameExtension ?: @"tmp";
+        #else
+        return @"tmp";
+        #endif
     } else {
-        // Fallback for iOS <14
+        // iOS 13及以下处理方案
         CFStringRef uti = UTTypeCreatePreferredIdentifierForTag(
-            kUTTagClassMIMEType,
+            kUTTagClassMIMEType,  // 使用CoreServices中的定义
             (__bridge CFStringRef)mimeType,
             NULL
         );
-        CFStringRef ext = UTTypeCopyPreferredTagWithClass(uti, kUTTagClassFilenameExtension);
+        
+        CFStringRef extension = UTTypeCopyPreferredTagWithClass(
+            uti,
+            kUTTagClassFilenameExtension
+        );
         CFRelease(uti);
         
-        NSString *extension = (__bridge_transfer NSString *)ext;
         if (!extension) {
             switch (mediaType) {
                 case MediaTypeVideo: return @"mp4";
@@ -1597,7 +1604,7 @@ static NSString* mimeTypeToExtension(NSString *mimeType, MediaType mediaType) {
                 case MediaTypeLivePhoto: return @"mov";
             }
         }
-        return extension;
+        return (__bridge_transfer NSString *)extension;
     }
 }
 
