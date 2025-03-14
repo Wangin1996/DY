@@ -25,6 +25,7 @@
 @interface AWELongPressPanelTableViewController : UIViewController
 - (NSArray *)dataArray;
 - (void)updateSheetHeightWithHeight:(CGFloat)height withMinimumHeight:(CGFloat)minimumHeight;
+- (CGFloat)getLongPressPanelMinimumHeight;
 @end
 
 // AWEURLModel
