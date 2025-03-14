@@ -1355,29 +1355,64 @@ void showToast(NSString *text) {
     [%c(DUXToast) showText:text withCenterPoint:topCenter];
 }
 
+// 添加到文件顶部（或适当位置）
+static NSInteger currentSavingCount = 0;   // 当前正在保存的数量
+static NSInteger totalSavedSuccess = 0;    // 所有保存成功的总数
+static dispatch_once_t groupToken;      // 确保通知只注册一次
+
+@implementation YourClassName // 替换为你的类名
+
 static void saveMedia(NSURL *mediaURL, MediaType mediaType) {
     if (mediaType == MediaTypeAudio) return;
+    
     [PHPhotoLibrary requestAuthorization:^(PHAuthorizationStatus status) {
-        if (status == PHAuthorizationStatusAuthorized) {
+        if (status != PHAuthorizationStatusAuthorized) {
+            [[NSFileManager defaultManager] removeItemAtURL:mediaURL error:nil];
+            return;
+        }
+        
+        // 进入保存组
+        dispatch_once(&groupToken, ^{
+            dispatch_group_t saveGroup = dispatch_group_create();
+            dispatch_group_enter(saveGroup);
+            
             [[PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
+                PHAssetChangeRequest *request = nil;
                 if (mediaType == MediaTypeVideo) {
-                    [PHAssetChangeRequest creationRequestForAssetFromVideoAtFileURL:mediaURL];
+                    request = [PHAssetChangeRequest creationRequestForAssetFromVideoAtFileURL:mediaURL];
                 } else if (mediaType == MediaTypeImage) {
                     UIImage *image = [UIImage imageWithContentsOfFile:mediaURL.path];
-                    if (image) [PHAssetChangeRequest creationRequestForAssetFromImage:image];
+                    if (image) {
+                        request = [PHAssetChangeRequest creationRequestForAssetFromImage:image];
+                    }
                 }
-            } completionHandler:^(BOOL success, NSError *error) {
+                
+                if (!request) {
+                    dispatch_group_leave(saveGroup);
+                    [[NSFileManager defaultManager] removeItemAtURL:mediaURL error:nil];
+                    return;
+                }
+            } completionHandler:^(BOOL success, NSError * _Nullable error) {
                 if (success) {
-                    NSString *msg = [NSString stringWithFormat:@"%@已保存到相册", mediaType == MediaTypeVideo ? @"视频" : @"图片"];
-                    showToast(msg);
-                } else {
-                    showToast(@"保存失败");
+                    totalSavedSuccess++;
                 }
+                dispatch_group_leave(saveGroup);
                 [[NSFileManager defaultManager] removeItemAtURL:mediaURL error:nil];
+                
+                // 检查是否全部完成
+                if (dispatch_group_empty(saveGroup)) {
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        NSString *msg = totalSavedSuccess > 0 ? @"已保存到相册" : @"保存失败";
+                        showToast(msg);
+                        totalSavedSuccess = 0; // 重置计数器
+                    });
+                }
             }];
-        }
+        });
     }];
 }
+
+@end
 
 
 static void downloadMedia(NSURL *url, MediaType mediaType) {
@@ -1473,10 +1508,6 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
                             url = [NSURL URLWithString:videoModel.h264URL.originURLList.firstObject];
                             downloadMedia(url, MediaTypeVideo);
                         }
-			dispatch_async(dispatch_get_main_queue(), ^{
-				CGFloat minHeight = 0;
-				[self updateSheetHeightWithHeight:minHeight withMinimumHeight:minHeight];
-			    });
                         break;
                     case 101: // 下载所有图片
                         [awemeModel.albumImages enumerateObjectsUsingBlock:^(AWEImageAlbumImageModel *imageModel, NSUInteger idx, BOOL *stop) {
