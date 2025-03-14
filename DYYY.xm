@@ -1355,10 +1355,6 @@ typedef NS_ENUM(NSUInteger, MediaType) {
 %end
 
 
-@interface DUXToast : UIView
-+ (void)showText:(id)arg1 withCenterPoint:(CGPoint)arg2;
-+ (void)showText:(id)arg1;
-@end
 
 
 CGPoint topCenter = CGPointMake(
