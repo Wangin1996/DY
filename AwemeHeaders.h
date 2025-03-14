@@ -49,7 +49,7 @@
 // AWEImageAlbumImageModel
 @interface AWEImageAlbumImageModel : NSObject
 @property (nonatomic, copy) NSArray *urlList;
-@property (nonatomic, copy) AWEvideoModel *clipVideo;
+@property (nonatomic, copy) AWEVideoModel *clipVideo;
 @end
 
 //以上为新增
