@@ -69,12 +69,6 @@ static UIViewController *topView(void) {
     return rootVC;
 }
 
-// 媒体类型枚举
-typedef NS_ENUM(NSUInteger, MediaType) {
-    MediaTypeVideo,
-    MediaTypeImage,
-    MediaTypeAudio
-};
 
 
 //去除开屏广告
@@ -1355,6 +1349,10 @@ typedef NS_ENUM(NSUInteger, MediaType) {
 %end
 
 
+@interface DUXToast : UIView
++ (void)showText:(id)arg1 withCenterPoint:(CGPoint)arg2;
++ (void)showText:(id)arg1;
+@end
 
 
 CGPoint topCenter = CGPointMake(
@@ -1366,6 +1364,20 @@ void showToast(NSString *text) {
     //[%c(DUXToast) showText:text];
     [%c(DUXToast) showText:text withCenterPoint:topCenter];
 }
+
+// 媒体类型枚举
+typedef NS_ENUM(NSUInteger, MediaType) {
+    MediaTypeVideo,
+    MediaTypeImage,
+    MediaTypeAudio
+};
+
+#include <AudioToolbox/AudioToolbox.h>
+
+static void systemVibrate() {
+    AudioServicesPlaySystemSound(kSystemSoundID_Vibrate);
+}
+
 
 static void saveMedia(NSURL *mediaURL, MediaType mediaType) {
     if (mediaType == MediaTypeAudio) return;
@@ -1381,6 +1393,7 @@ static void saveMedia(NSURL *mediaURL, MediaType mediaType) {
             } completionHandler:^(BOOL success, NSError *error) {
                 if (success) {
                     NSString *msg = [NSString stringWithFormat:@"%@已保存到相册", mediaType == MediaTypeVideo ? @"视频" : @"图片"];
+                    UIFeedbackGenerator *generator = [UIFeedbackGenerator new];
                     showToast(msg);
                 } else {
                     showToast(@"保存失败");
@@ -1390,7 +1403,6 @@ static void saveMedia(NSURL *mediaURL, MediaType mediaType) {
         }
     }];
 }
-
 
 static void downloadMedia(NSURL *url, MediaType mediaType) {
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -1421,13 +1433,13 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
                     saveMedia(destinationURL, mediaType);
                 }
             } else {
-                showToast(@"下载失败");
+                NSString *errorMessage = [NSString stringWithFormat:@"下载失败: %@", error.localizedDescription];
+                showToast(errorMessage);
             }
         }];
         [downloadTask resume];
     });
 }
-
 
 
 
