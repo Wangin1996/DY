@@ -1388,11 +1388,13 @@ static NSString* mimeTypeToExtension(NSString *mimeType, MediaType mediaType);
     
     // 创建新分组
     AWELongPressPanelViewGroupModel *newGroup = [[%c(AWELongPressPanelViewGroupModel) alloc] init];
-    newGroup.groupType = 999;
+    newGroup.groupType = 0;
     
     // 获取数据模型
     AWELongPressPanelBaseViewModel *tempModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
     AWEAwemeModel *aweme = tempModel.awemeModel;
+    AWEVideoModel *video = aweme.video;
+    AWEMusicModel *music = aweme.music;
     
     NSMutableArray *customActions = [NSMutableArray array];
     
