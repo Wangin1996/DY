@@ -1412,7 +1412,6 @@ static void saveMedia(NSURL *mediaURL, MediaType mediaType) {
     }];
 }
 
-@end
 
 
 static void downloadMedia(NSURL *url, MediaType mediaType) {
