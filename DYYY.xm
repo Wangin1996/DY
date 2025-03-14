@@ -1425,7 +1425,7 @@ static void saveMedia(NSURL *mediaURL, MediaType mediaType) {
                     // 所有操作完成后的统一处理
                     if (success) {
 			NSString *msg = [NSString stringWithFormat:@"%@已保存到相册",
-                	systemVibrate();
+                	//systemVibrate();
                         showToast(msg);
                     } else {
                         showToast(@"保存失败");
