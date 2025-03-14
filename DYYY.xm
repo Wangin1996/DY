@@ -1355,63 +1355,29 @@ void showToast(NSString *text) {
     [%c(DUXToast) showText:text withCenterPoint:topCenter];
 }
 
-// 添加到文件顶部（或适当位置）
-static NSInteger currentSavingCount = 0;   // 当前正在保存的数量
-static NSInteger totalSavedSuccess = 0;    // 所有保存成功的总数
-static dispatch_once_t groupToken;      // 确保通知只注册一次
-static dispatch_group_t saveGroup = NULL; // 👈 声明为静态变量，确保全局可见
-//@implementation YourClassName 
-
 static void saveMedia(NSURL *mediaURL, MediaType mediaType) {
     if (mediaType == MediaTypeAudio) return;
-    
     [PHPhotoLibrary requestAuthorization:^(PHAuthorizationStatus status) {
-        if (status != PHAuthorizationStatusAuthorized) {
-            [[NSFileManager defaultManager] removeItemAtURL:mediaURL error:nil];
-            return;
-        }
-        
-        // 进入保存组
-        dispatch_once(&groupToken, ^{
-            dispatch_group_t saveGroup = dispatch_group_create();
-            dispatch_group_enter(saveGroup);
-            
+        if (status == PHAuthorizationStatusAuthorized) {
             [[PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
-                PHAssetChangeRequest *request = nil;
                 if (mediaType == MediaTypeVideo) {
-                    request = [PHAssetChangeRequest creationRequestForAssetFromVideoAtFileURL:mediaURL];
+                    [PHAssetChangeRequest creationRequestForAssetFromVideoAtFileURL:mediaURL];
                 } else if (mediaType == MediaTypeImage) {
                     UIImage *image = [UIImage imageWithContentsOfFile:mediaURL.path];
-                    if (image) {
-                        request = [PHAssetChangeRequest creationRequestForAssetFromImage:image];
-                    }
+                    if (image) [PHAssetChangeRequest creationRequestForAssetFromImage:image];
                 }
-                
-                if (!request) {
-                    dispatch_group_leave(saveGroup);
-                    [[NSFileManager defaultManager] removeItemAtURL:mediaURL error:nil];
-                    return;
-                }
-            } completionHandler:^(BOOL success, NSError * _Nullable error) {
+            } completionHandler:^(BOOL success, NSError *error) {
                 if (success) {
-                    totalSavedSuccess++;
+                    NSString *msg = [NSString stringWithFormat:@"%@已保存到相册", mediaType == MediaTypeVideo ? @"视频" : @"图片"];
+                    showToast(msg);
+                } else {
+                    showToast(@"保存失败");
                 }
-                dispatch_group_leave(saveGroup);
                 [[NSFileManager defaultManager] removeItemAtURL:mediaURL error:nil];
-                
-                // 检查是否全部完成
-                if (dispatch_group_empty(saveGroup)) {
-                    dispatch_async(dispatch_get_main_queue(), ^{
-                        NSString *msg = totalSavedSuccess > 0 ? @"已保存到相册" : @"保存失败";
-                        showToast(msg);
-                        totalSavedSuccess = 0; // 重置计数器
-                    });
-                }
             }];
-        });
+        }
     }];
 }
-
 
 
 static void downloadMedia(NSURL *url, MediaType mediaType) {
