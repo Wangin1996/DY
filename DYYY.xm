@@ -1414,17 +1414,17 @@ static void saveMedia(NSURL *mediaURL, MediaType mediaType) {
         } completionHandler:^(BOOL success, NSError *error) {
             currentOperations--;
             if (success) {
-
+                	NSString *msg = [NSString stringWithFormat:@"%@已保存到相册", 
+                	mediaType == MediaTypeVideo ? @"视频" : @"图片"];
             } else {
-                // 错误处理（可选）
+                        showToast(@"保存失败");
             }
             
             if (currentOperations == 0) {
                 dispatch_group_notify(saveGroup, dispatch_get_main_queue(), ^{
                     // 所有操作完成后的统一处理
                     if (success) {
-                	NSString *msg = [NSString stringWithFormat:@"%@已保存到相册", 
-                	mediaType == MediaTypeVideo ? @"视频" : @"图片"];
+			NSString *msg = [NSString stringWithFormat:@"%@已保存到相册",
                 	systemVibrate();
                         showToast(msg);
                     } else {
