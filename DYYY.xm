@@ -1404,7 +1404,7 @@ static void saveMedia(NSURL *mediaURL, MediaType mediaType) {
         }
         
         currentOperations++;
-        [PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
+        [[PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
             if (mediaType == MediaTypeVideo) {
                 [PHAssetChangeRequest creationRequestForAssetFromVideoAtFileURL:mediaURL];
             } else if (mediaType == MediaTypeImage) {
