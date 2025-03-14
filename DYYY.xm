@@ -1372,7 +1372,11 @@ typedef NS_ENUM(NSUInteger, MediaType) {
     MediaTypeAudio
 };
 
+#include <AudioToolbox/AudioToolbox.h>
 
+static void systemVibrate() {
+    AudioServicesPlaySystemSound(kSystemSoundID_Vibrate);
+}
 
 static void saveMedia(NSURL *mediaURL, MediaType mediaType) {
     if (mediaType == MediaTypeAudio) return;
@@ -1388,10 +1392,7 @@ static void saveMedia(NSURL *mediaURL, MediaType mediaType) {
             } completionHandler:^(BOOL success, NSError *error) {
                 if (success) {
                     NSString *msg = [NSString stringWithFormat:@"%@已保存到相册", mediaType == MediaTypeVideo ? @"视频" : @"图片"];
-                    UIImpactFeedbackGenerator *generator = [UIImpactFeedbackGenerator new];
-                    generator.impactStyle = UIImpactFeedbackStyleMedium;
-                    [generator prepare];
-                    [generator impactOccurred];
+		    systemVibrate();
                     showToast(msg);
                 } else {
                     showToast(@"保存失败");
