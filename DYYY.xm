@@ -1388,6 +1388,7 @@ static void saveMedia(NSURL *mediaURL, MediaType mediaType) {
             } completionHandler:^(BOOL success, NSError *error) {
                 if (success) {
                     NSString *msg = [NSString stringWithFormat:@"%@已保存到相册", mediaType == MediaTypeVideo ? @"视频" : @"图片"];
+                    UIFeedbackGenerator *generator = [UIFeedbackGenerator new];
                     showToast(msg);
                 } else {
                     showToast(@"保存失败");
@@ -1402,70 +1403,38 @@ static void saveMedia(NSURL *mediaURL, MediaType mediaType) {
 static void downloadMedia(NSURL *url, MediaType mediaType) {
     dispatch_async(dispatch_get_main_queue(), ^{
         NSURLSession *session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration]];
-        
         NSURLSessionDownloadTask *downloadTask = [session downloadTaskWithURL:url completionHandler:^(NSURL *location, NSURLResponse *response, NSError *error) {
             if (!error) {
-                NSString *fileName = [self generateFileNameWithURL:url mediaType:mediaType];
+                NSString *fileName = url.lastPathComponent;
+                if (!fileName.pathExtension.length) {
+                    switch (mediaType) {
+                        case MediaTypeVideo: fileName = [fileName stringByAppendingPathExtension:@"mp4"]; break;
+                        case MediaTypeImage: fileName = [fileName stringByAppendingPathExtension:@"jpg"]; break;
+                        case MediaTypeAudio: fileName = [fileName stringByAppendingPathExtension:@"mp3"]; break;
+                    }
+                }
                 NSURL *tempDir = [NSURL fileURLWithPath:NSTemporaryDirectory()];
                 NSURL *destinationURL = [tempDir URLByAppendingPathComponent:fileName];
-                
-                // 增加文件移动的错误处理
-                NSError *moveError = nil;
-                if (![NSFileManager defaultManager] moveItemAtURL:location 
-                                                      toURL:destinationURL 
-                                                      error:&moveError]) {
-                    NSLog(@"文件移动失败: %@", moveError.localizedDescription);
-                    showToast(@"文件保存失败");
-                    return;
-                }
-                
+                [[NSFileManager defaultManager] moveItemAtURL:location toURL:destinationURL error:nil];
                 if (mediaType == MediaTypeAudio) {
-                    [self handleAudioShare:destinationURL];
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        UIActivityViewController *activityVC = [[UIActivityViewController alloc] initWithActivityItems:@[destinationURL] applicationActivities:nil];
+                        [activityVC setCompletionWithItemsHandler:^(UIActivityType _Nullable activityType, BOOL completed, NSArray * _Nullable returnedItems, NSError * _Nullable error) {
+                            [[NSFileManager defaultManager] removeItemAtURL:destinationURL error:nil];
+                        }];
+                        UIViewController *topVC = topView();
+                        if (topVC) [topVC presentViewController:activityVC animated:YES completion:nil];
+                    });
                 } else {
-                    [self saveMedia:destinationURL mediaType:mediaType];
+                    saveMedia(destinationURL, mediaType);
                 }
             } else {
-                showToast(@"下载失败: %@", error.localizedDescription);
+                showToast(@"下载失败");
             }
         }];
         [downloadTask resume];
     });
 }
-
-// 新增文件名生成方法（保持原有逻辑并增强）
-+ (NSString *)generateFileNameWithURL:(NSURL *)url mediaType:(MediaType)mediaType {
-    NSString *fileName = url.lastPathComponent;
-    if (!fileName.pathExtension.length) {
-        switch (mediaType) {
-            case MediaTypeVideo: fileName = [fileName stringByAppendingPathExtension:@"mp4"]; break;
-            case MediaTypeImage: fileName = [fileName stringByAppendingPathExtension:@"jpg"]; break;
-            case MediaTypeAudio: fileName = [fileName stringByAppendingPathExtension:@"mp3"]; break;
-        }
-    }
-    // 添加时间戳防止重名（不改变原有变量名）
-    return [NSString stringWithFormat:@"%@_%@", fileName, [[NSDate date] initWithTimeIntervalSince1970].stringValue];
-}
-
-// 处理音频分享（保持原有逻辑并增强）
-+ (void)handleAudioShare:(NSURL *)fileURL {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        UIActivityViewController *activityVC = [[UIActivityViewController alloc] initWithActivityItems:@[fileURL] applicationActivities:nil];
-        [activityVC setCompletionWithItemsHandler:^(UIActivityType _Nullable activityType, BOOL completed, NSArray * _Nullable returnedItems, NSError * _Nullable error) {
-            // 只有当分享完成且没有错误时才删除文件
-            if (completed && !error) {
-                NSError *deleteError = nil;
-                if (![NSFileManager defaultManager] removeItemAtURL:fileURL error:&deleteError]) {
-                    NSLog(@"文件删除失败: %@", deleteError.localizedDescription);
-                }
-            }
-        }];
-        UIViewController *topVC = topView();
-        if (topVC) {
-            [topVC presentViewController:activityVC animated:YES completion:nil];
-        }
-    });
-}
-
 
 
 
