@@ -71,8 +71,12 @@
 @property (nonatomic, assign, readwrite) NSInteger colorStyle;
 @end
 
-@interface AWESettingsViewModel : AWESettingBaseViewModel
+
+@interface AWESettingsViewModel : AWESettingBaseViewModel 
+@property (nonatomic, weak, readwrite) id controllerDelegate; // 公共属性
+
 @end
+
 
 @interface AWENavigationBar : UIView
 @property (nonatomic, assign, readonly) UILabel *titleLabel;
@@ -123,9 +127,7 @@
 @property (nonatomic, assign, readwrite) CGFloat sectionHeaderHeight;
 @end
 
-@interface AWESettingsViewModel : NSObject
-@property (nonatomic, weak, readwrite) id controllerDelegate;
-@end
+
 
 
 
