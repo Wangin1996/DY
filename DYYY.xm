@@ -1483,7 +1483,9 @@ static void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
     AWEAwemeModel *aweme = tempModel.awemeModel;
     AWEVideoModel *video = aweme.video;
     AWEMusicModel *music = aweme.music;
-    
+
+
+     __weak typeof(self) weakSelf = self;
     // 构建按钮数组
     NSMutableArray *customActions = [NSMutableArray array];
     
@@ -1501,6 +1503,9 @@ static void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
                         downloadMedia(@[url], MediaTypeImage);
                     }
                 }
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [weakSelf.presentingViewController dismissViewControllerAnimated:YES completion:nil];
+            });
             }
         }];
         
