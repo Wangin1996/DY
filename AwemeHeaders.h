@@ -44,10 +44,62 @@
 @property (nonatomic, copy) NSArray *bitrateModels;
 @end
 
-// AWEImageAlbumImageModel
 @interface AWEImageAlbumImageModel : NSObject
-@property (nonatomic, copy) NSArray *urlList;
+@property (copy, nonatomic) NSString* uri;
+@property (copy, nonatomic) NSArray* urlList;
+@property (copy, nonatomic) NSArray* downloadURLList;
 @end
+
+@interface DUXToast : UIView
++ (void)showText:(id)arg1 withCenterPoint:(CGPoint)arg2;
++ (void)showText:(id)arg1;
+@end
+
+@interface AWEProgressLoadingView : UIView
+- (id)initWithType:(NSInteger)arg1 title:(NSString *)arg2;
+- (id)initWithType:(NSInteger)arg1 title:(NSString *)arg2 progressTextFont:(UIFont *)arg3 progressCircleWidth:(NSNumber *)arg4;
+- (void)dismissWithAnimated:(BOOL)arg1;
+- (void)dismissAnimated:(BOOL)arg1;
+- (void)showOnView:(id)arg1 animated:(BOOL)arg2;
+- (void)showOnView:(id)arg1 animated:(BOOL)arg2 afterDelay:(CGFloat)arg3;
+@end
+
+@interface AWESettingBaseViewModel : NSObject
+@property (nonatomic, weak, readwrite) id controllerDelegate;
+@property (nonatomic, strong, readwrite) NSArray *sectionDataArray;
+@property (nonatomic, copy, readwrite) NSString *traceEnterFrom;
+@property (nonatomic, assign, readwrite) NSInteger colorStyle;
+@end
+
+@interface AWESettingsViewModel : AWESettingBaseViewModel
+@end
+
+@interface AWENavigationBar : UIView
+@property (nonatomic, assign, readonly) UILabel *titleLabel;
+@property (nonatomic, assign, readonly) UILabel *subTitleLabel;
+@end
+
+@interface AWESettingBaseViewController : UIViewController
+@property (nonatomic, strong, readwrite) AWESettingsViewModel *viewModel;
+@property (nonatomic, assign, readwrite) BOOL useCardUIStyle;
+@property (nonatomic, assign, readwrite) NSInteger colorStyle;
+@end
+
+@interface AFDAlertAction : NSObject
++ (id)actionWithTitle:(id)arg1 style:(NSInteger)arg2 handler:(id)arg3;
+@end
+
+@interface AFDTextField : UITextField
+@property (nonatomic, assign, readwrite) NSInteger textMaxLength;
+@property (nonatomic, strong, readwrite) NSString *textMaxLengthPrompt;
+@end
+
+@interface AFDTextInputAlertController : UIViewController
+@property (nonatomic, copy, readwrite) NSArray<AFDAlertAction *> *actions;
+@property (nonatomic, strong, readwrite) AFDTextField *textField;
++ (id)alertControllerWithTitle:(id)arg1 actions:(id)arg2;
+@end
+
 
 //以上为新增
 
@@ -100,6 +152,7 @@
 
 @interface AWEPlayInteractionViewController : UIViewController
 @property (nonatomic, strong) UIView *view;
+@property(readonly, nonatomic) AWEAwemeModel *model;
 @end
 
 @interface UIView (Transparency)
