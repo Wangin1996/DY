@@ -1414,9 +1414,7 @@ static void saveMedia(NSURL *mediaURL, MediaType mediaType) {
         } completionHandler:^(BOOL success, NSError *error) {
             currentOperations--;
             if (success) {
-                NSString *msg = [NSString stringWithFormat:@"%@已保存到相册", 
-                                  mediaType == MediaTypeVideo ? @"视频" : @"图片"];
-                systemVibrate();
+
             } else {
                 // 错误处理（可选）
             }
@@ -1425,6 +1423,9 @@ static void saveMedia(NSURL *mediaURL, MediaType mediaType) {
                 dispatch_group_notify(saveGroup, dispatch_get_main_queue(), ^{
                     // 所有操作完成后的统一处理
                     if (success) {
+                	NSString *msg = [NSString stringWithFormat:@"%@已保存到相册", 
+                	mediaType == MediaTypeVideo ? @"视频" : @"图片"];
+                	systemVibrate();
                         showToast(msg);
                     } else {
                         showToast(@"保存失败");
