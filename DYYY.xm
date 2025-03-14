@@ -1489,7 +1489,7 @@ static UIViewController* topViewController();
         AWELongPressPanelBaseViewModel *vm = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
         vm.describeString = action[@"title"];
         vm.enterMethod = DYYY;
-        vm.actionType = 1000 + idx;
+        vm.actionType = 100 + [customActions indexOfObject:action];
         vm.showIfNeed = YES;
         vm.duxIconName = action[@"icon"];
         vm.action = action[@"action"];
