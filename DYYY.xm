@@ -1355,36 +1355,54 @@ void showToast(NSString *text) {
     [%c(DUXToast) showText:text withCenterPoint:topCenter];
 }
 
-static void saveMedia(NSURL *mediaURL, MediaType mediaType) {
-    if (mediaType == MediaTypeAudio) return;
+static void saveMedia(NSArray<NSURL *> *mediaURLs, MediaType mediaType) {
     [PHPhotoLibrary requestAuthorization:^(PHAuthorizationStatus status) {
         if (status == PHAuthorizationStatusAuthorized) {
             [[PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
-                if (mediaType == MediaTypeVideo) {
-                    [PHAssetChangeRequest creationRequestForAssetFromVideoAtFileURL:mediaURL];
-                } else if (mediaType == MediaTypeImage) {
-                    UIImage *image = [UIImage imageWithContentsOfFile:mediaURL.path];
-                    if (image) [PHAssetChangeRequest creationRequestForAssetFromImage:image];
+                for (NSURL *mediaURL in mediaURLs) {
+                    if (mediaType == MediaTypeVideo) {
+                        [PHAssetChangeRequest creationRequestForAssetFromVideoAtFileURL:mediaURL];
+                    } else if (mediaType == MediaTypeImage) {
+                        UIImage *image = [UIImage imageWithContentsOfFile:mediaURL.path];
+                        if (image) [PHAssetChangeRequest creationRequestForAssetFromImage:image];
+                    }
                 }
             } completionHandler:^(BOOL success, NSError *error) {
+                NSString *message = nil;
                 if (success) {
-                    NSString *msg = [NSString stringWithFormat:@"%@已保存到相册", mediaType == MediaTypeVideo ? @"视频" : @"图片"];
-                    showToast(msg);
+                    NSString *typeStr = mediaType == MediaTypeVideo ? @"视频" : @"图片";
+                    message = [NSString stringWithFormat:@"成功保存%lu个%@", (unsigned long)mediaURLs.count, typeStr];
                 } else {
-                    showToast(@"保存失败");
+                    message = [NSString stringWithFormat:@"保存失败: %@", error.localizedDescription];
                 }
-                [[NSFileManager defaultManager] removeItemAtURL:mediaURL error:nil];
+                
+                // 统一清理文件
+                for (NSURL *mediaURL in mediaURLs) {
+                    [[NSFileManager defaultManager] removeItemAtURL:mediaURL error:nil];
+                }
+                
+                // 在主线程显示提示
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    showToast(message);
+                });
             }];
         }
     }];
 }
 
-
-static void downloadMedia(NSURL *url, MediaType mediaType) {
-    dispatch_async(dispatch_get_main_queue(), ^{
+// 下载核心函数
+static void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
+    dispatch_group_t downloadGroup = dispatch_group_create();
+    NSMutableArray<NSURL *> *tempFiles = [NSMutableArray array];
+    __block BOOL hasDownloadError = NO;
+    
+    for (NSURL *url in urls) {
+        dispatch_group_enter(downloadGroup);
+        
         NSURLSession *session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration]];
-        NSURLSessionDownloadTask *downloadTask = [session downloadTaskWithURL:url completionHandler:^(NSURL *location, NSURLResponse *response, NSError *error) {
-            if (!error) {
+        NSURLSessionDownloadTask *task = [session downloadTaskWithURL:url completionHandler:^(NSURL *location, NSURLResponse *response, NSError *error) {
+            if (!error && location) {
+                // 处理文件名
                 NSString *fileName = url.lastPathComponent;
                 if (!fileName.pathExtension.length) {
                     switch (mediaType) {
@@ -1393,106 +1411,133 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
                         case MediaTypeAudio: fileName = [fileName stringByAppendingPathExtension:@"mp3"]; break;
                     }
                 }
-                NSURL *tempDir = [NSURL fileURLWithPath:NSTemporaryDirectory()];
-                NSURL *destinationURL = [tempDir URLByAppendingPathComponent:fileName];
-                [[NSFileManager defaultManager] moveItemAtURL:location toURL:destinationURL error:nil];
-                if (mediaType == MediaTypeAudio) {
-                    dispatch_async(dispatch_get_main_queue(), ^{
-                        UIActivityViewController *activityVC = [[UIActivityViewController alloc] initWithActivityItems:@[destinationURL] applicationActivities:nil];
-                        [activityVC setCompletionWithItemsHandler:^(UIActivityType _Nullable activityType, BOOL completed, NSArray * _Nullable returnedItems, NSError * _Nullable error) {
-                            [[NSFileManager defaultManager] removeItemAtURL:destinationURL error:nil];
-                        }];
-                        UIViewController *topVC = topView();
-                        if (topVC) [topVC presentViewController:activityVC animated:YES completion:nil];
-                    });
-                } else {
-                    saveMedia(destinationURL, mediaType);
+                
+                // 移动文件
+                NSURL *destURL = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:fileName]];
+                if ([[NSFileManager defaultManager] moveItemAtURL:location toURL:destURL error:nil]) {
+                    @synchronized(tempFiles) {
+                        [tempFiles addObject:destURL];
+                    }
                 }
             } else {
-                showToast(@"下载失败");
+                hasDownloadError = YES;
             }
+            dispatch_group_leave(downloadGroup);
         }];
-        [downloadTask resume];
+        [task resume];
+    }
+    
+    dispatch_group_notify(downloadGroup, dispatch_get_main_queue(), ^{
+        if (tempFiles.count > 0) {
+            if (mediaType == MediaTypeAudio) {
+                // 处理音频分享
+                UIActivityViewController *activityVC = [[UIActivityViewController alloc] initWithActivityItems:tempFiles applicationActivities:nil];
+                [activityVC setCompletionWithItemsHandler:^(UIActivityType activityType, BOOL completed, NSArray *returnedItems, NSError *error) {
+                    for (NSURL *fileURL in tempFiles) {
+                        [[NSFileManager defaultManager] removeItemAtURL:fileURL error:nil];
+                    }
+                }];
+                UIViewController *topVC = topView(); // 需要实现获取顶层视图控制器的方法
+                [topVC presentViewController:activityVC animated:YES completion:nil];
+            } else {
+                // 保存媒体文件
+                saveMedia(tempFiles, mediaType);
+            }
+        } else {
+            NSString *errorMsg = hasDownloadError ? @"下载失败" : @"没有可下载的内容";
+            showToast(errorMsg);
+        }
     });
 }
 
-
-
-
-//长按页面插入无水印下载
 %hook AWELongPressPanelTableViewController
 - (NSArray *)dataArray {
     NSArray *originalArray = %orig;
     if (![[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYlongpressdownload"]) return originalArray;
     
-    // 新增组模型
-    AWELongPressPanelViewGroupModel *newGroupModel = [[%c(AWELongPressPanelViewGroupModel) alloc] init];
-    newGroupModel.groupType = 0;
+    // 创建新分组
+    AWELongPressPanelViewGroupModel *newGroup = [[%c(AWELongPressPanelViewGroupModel) alloc] init];
+    newGroup.groupType = 0;
     
-    AWELongPressPanelBaseViewModel *tempViewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
-    AWEAwemeModel *awemeModel = tempViewModel.awemeModel;
-    AWEVideoModel *videoModel = awemeModel.video;
-    AWEMusicModel *musicModel = awemeModel.music;
+    // 获取数据模型
+    AWELongPressPanelBaseViewModel *tempModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
+    AWEAwemeModel *aweme = tempModel.awemeModel;
+    AWEVideoModel *video = aweme.video;
+    AWEMusicModel *music = aweme.music;
     
-    // 新增：获取当前选中的图片模型（关键修复）
-    AWEImageAlbumImageModel *currentImageModel = nil;
-    if (awemeModel.albumImages.count > 0) {
-        currentImageModel = awemeModel.albumImages[awemeModel.currentImageIndex - 1]; // 根据抖音官方索引逻辑
-    }
+    // 构建按钮数组
+    NSMutableArray *customActions = [NSMutableArray array];
     
-    // 根据视频类型判断显示按钮
-    NSArray *customButtons = awemeModel.awemeType == 68 ? 
-        @[@"下载当前图片", @"下载所有图片", @"下载音频"] : 
-        @[@"下载视频", @"下载音频"];  
-    
-    NSArray *customIcons = @[@"ic_xiocan_outlined_20", @"ic_xiocan_outlined_20", @"ic_xiocan_outlined_20"]; 
-    
-    NSMutableArray *viewModels = [NSMutableArray arrayWithCapacity:customButtons.count];
-    for (NSUInteger i = 0; i < customButtons.count; i++) {
-        AWELongPressPanelBaseViewModel *viewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
-        viewModel.describeString = customButtons[i];
-        viewModel.enterMethod = DYYY;
-        viewModel.actionType = 100 + i;
-        viewModel.showIfNeed = YES;
-        viewModel.duxIconName = customIcons[i];
-        
-        __weak AWELongPressPanelBaseViewModel *weakViewModel = viewModel;
-        viewModel.action = ^{
-            AWELongPressPanelBaseViewModel *strongViewModel = weakViewModel;
-            if (strongViewModel) {
-                NSURL *url = nil;
-                switch (strongViewModel.actionType) {
-                    case 100: // 下载图片（修复后）
-                        if (awemeModel.awemeType == 68) {
-                            // 确保 currentImageModel 已赋值
-                            if (currentImageModel && currentImageModel.urlList.count > 0) {
-                                url = [NSURL URLWithString:currentImageModel.urlList.firstObject];
-                                downloadMedia(url, MediaTypeImage);
-                            }
-                        } else {
-                            url = [NSURL URLWithString:videoModel.h264URL.originURLList.firstObject];
-                            downloadMedia(url, MediaTypeVideo);
-                        }
-                        break;
-                    case 101: // 下载所有图片
-                        [awemeModel.albumImages enumerateObjectsUsingBlock:^(AWEImageAlbumImageModel *imageModel, NSUInteger idx, BOOL *stop) {
-                            if (imageModel.urlList.count > 0) {
-                                NSURL *imageUrl = [NSURL URLWithString:imageModel.urlList.firstObject];
-                                downloadMedia(imageUrl, MediaTypeImage);
-                            }
-                        }];
-                        break;
-                    case 102: // 下载音频
-                        url = [NSURL URLWithString:musicModel.playURL.originURLList.firstObject];
-                        downloadMedia(url, MediaTypeAudio);
-                        break;
+    // 图片类型处理
+    if (aweme.awemeType == 68) { // 图集类型
+        [customActions addObject:@{
+            @"title": @"下载当前图片",
+            @"type": @(MediaTypeImage),
+            @"action": ^{
+                if (aweme.albumImages.count > aweme.currentImageIndex) {
+                    AWEImageAlbumImageModel *imageModel = aweme.albumImages[aweme.currentImageIndex];
+                    if (imageModel.urlList.count > 0) {
+                        NSURL *url = [NSURL URLWithString:imageModel.urlList.firstObject];
+                        downloadMedia(@[url], MediaTypeImage);
+                    }
                 }
             }
-        };
-        [viewModels addObject:viewModel];
+        }];
+        
+        [customActions addObject:@{
+            @"title": @"下载所有图片",
+            @"type": @(MediaTypeImage),
+            @"action": ^{
+                NSMutableArray *urls = [NSMutableArray array];
+                for (AWEImageAlbumImageModel *imageModel in aweme.albumImages) {
+                    if (imageModel.urlList.count > 0) {
+                        [urls addObject:[NSURL URLWithString:imageModel.urlList.firstObject]];
+                    }
+                }
+                if (urls.count > 0) {
+                    downloadMedia(urls, MediaTypeImage);
+                }
+            }
+        }];
+    } else { // 视频类型
+        [customActions addObject:@{
+            @"title": @"下载视频",
+            @"type": @(MediaTypeVideo),
+            @"action": ^{
+                if (video.h264URL.originURLList.count > 0) {
+                    NSURL *url = [NSURL URLWithString:video.h264URL.originURLList.firstObject];
+                    downloadMedia(@[url], MediaTypeVideo);
+                }
+            }
+        }];
     }
     
-    newGroupModel.groupArr = viewModels;
-    return [@[newGroupModel] arrayByAddingObjectsFromArray:originalArray ?: @[]];
+    // 音频下载（通用）
+    [customActions addObject:@{
+        @"title": @"下载音频",
+        @"type": @(MediaTypeAudio),
+        @"action": ^{
+            if (music.playURL.originURLList.count > 0) {
+                NSURL *url = [NSURL URLWithString:music.playURL.originURLList.firstObject];
+                downloadMedia(@[url], MediaTypeAudio);
+            }
+        }
+    }];
+    
+    // 构建视图模型
+    NSMutableArray *viewModels = [NSMutableArray array];
+    for (NSDictionary *action in customActions) {
+        AWELongPressPanelBaseViewModel *vm = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
+        vm.describeString = action[@"title"];
+        vm.enterMethod = DYYY;
+        vm.actionType = 100 + [customActions indexOfObject:action];
+        vm.showIfNeed = YES;
+        vm.duxIconName = @"ic_xiocan_outlined_20";
+        vm.action = action[@"action"];
+        [viewModels addObject:vm];
+    }
+    
+    newGroup.groupArr = viewModels;
+    return [@[newGroup] arrayByAddingObjectsFromArray:originalArray ?: @[]];
 }
 %end
