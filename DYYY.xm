@@ -1417,8 +1417,8 @@ static NSString* mimeTypeToExtension(NSString *mimeType, MediaType mediaType);
                             [urls addObject:[NSURL URLWithString:currentImage.urlList.firstObject]];
                         }
                         // 视频URL
-                        if (clipVideo.h264URL.originURLList.count > 0) {
-                            NSString *videoURL = AWEVideoModel.clipVideo.h264URL.originURLList.firstObject;
+                        if (currentImage.clipVideo.h264URL.originURLList.count > 0) {
+   			    NSString *videoURL = currentImage.clipVideo.h264URL.originURLList.firstObject;
                             [urls addObject:[NSURL URLWithString:videoURL]];
                         }
                         if (urls.count == 2) {
