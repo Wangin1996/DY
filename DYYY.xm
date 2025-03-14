@@ -1490,19 +1490,20 @@ static NSString* mimeTypeToExtension(NSString *mimeType, MediaType mediaType);
     
     // 构建视图模型
     NSMutableArray *viewModels = [NSMutableArray array];
-    [customActions enumerateObjectsUsingBlock:^(NSDictionary *dict, NSUInteger idx, BOOL *stop) {
+    for (NSDictionary *action in customActions) {
         AWELongPressPanelBaseViewModel *vm = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
-        vm.describeString = dict[@"title"];
-        vm.duxIconName = dict[@"icon"];
-        vm.actionType = 10000 + idx; // 唯一标识
-        vm.action = dict[@"action"];
+        vm.describeString = action[@"title"];
+        vm.enterMethod = DYYY;
+        vm.actionType = 100 + [customActions indexOfObject:action];
+        vm.showIfNeed = YES;
+        vm.duxIconName = @"ic_xiocan_outlined_20";
+        vm.action = action[@"action"];
         [viewModels addObject:vm];
-    }];
+    }
     
     newGroup.groupArr = viewModels;
     return [@[newGroup] arrayByAddingObjectsFromArray:originalArray ?: @[]];
 }
-
 %end
 
 // MARK: - 核心下载逻辑
