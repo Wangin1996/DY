@@ -1371,170 +1371,89 @@ void showToast(NSString *text) {
     [%c(DUXToast) showText:text withCenterPoint:topCenter];
 }
 
-typedef NS_ENUM(NSInteger, SaveMediaError) {
-    SaveMediaErrorNone,
-    SaveMediaErrorAuthorizationDenied,
-    SaveMediaErrorInvalidMediaType,
-    SaveMediaErrorFileReadError,
-    SaveMediaErrorSaveFailed
-};
-
-static NSString *const MediaTypeStrings[] = {
-    [MediaTypeImage] = @"图片",
-    [MediaTypeVideo] = @"视频"
-};
-
-static void SaveMediaErrorAlert(SaveMediaError error) {
-    NSString *message;
-    switch (error) {
-        case SaveMediaErrorAuthorizationDenied:
-            message = @"相册访问被拒绝，请在设置中启用权限";
-            break;
-        case SaveMediaErrorFileReadError:
-            message = @"文件读取失败";
-            break;
-        case SaveMediaErrorSaveFailed:
-            message = @"保存到相册失败";
-            break;
-        default:
-            message = @"未知错误";
-    }
-    showToast(message);
-}
-
-static PHAssetCreationRequest *createAssetRequest(NSURL *url, MediaType mediaType) {
-    if (mediaType == MediaTypeVideo) {
-        return [PHAssetChangeRequest creationRequestForAssetFromVideoAtFileURL:url];
-    } else if (mediaType == MediaTypeImage) {
-        UIImage *image = [UIImage imageWithContentsOfFile:url.path];
-        if (!image) {
-            NSLog(@"警告：图片文件损坏 %@", url.path);
-            return nil;
-        }
-        return [PHAssetChangeRequest creationRequestForAssetFromImage:image];
-    }
-    return nil;
-}
-
-static void handleSaveResult(BOOL success, NSError *error, NSURL *mediaURL) {
-    if (success) {
-        showToast([NSString stringWithFormat:@"%@已保存到相册", 
-                  MediaTypeStrings[mediaType]]);
-        // 建议在异步操作后删除文件
-        dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_LOW, 0), ^{
-            [[NSFileManager defaultManager] removeItemAtURL:mediaURL error:nil];
-        });
-    } else {
-        SaveMediaError errorCode = SaveMediaErrorSaveFailed;
-        if ([error domain isEqualToString:PHPhotoLibraryErrorDomain]) {
-            NSInteger code = [error code];
-            switch (code) {
-                case PHPhotoLibraryErrorAuthorizationDenied:
-                    errorCode = SaveMediaErrorAuthorizationDenied;
-                    break;
-                // 其他PHPhotoLibrary错误处理...
-            }
-        } else if (error.code == NSFileReadNoSuchFileError) {
-            errorCode = SaveMediaErrorFileReadError;
-        }
-        
-        SaveMediaErrorAlert(errorCode);
-        // 保留原始文件供用户重试
-    }
-}
-
-static void saveMediaInternal(NSURL *mediaURL, MediaType mediaType) {
-    if (mediaType == MediaTypeAudio) {
-        SaveMediaErrorAlert(SaveMediaErrorInvalidMediaType);
-        return;
-    }
-    
-    PHAuthorizationStatus currentStatus = [PHPhotoLibrary authorizationStatus];
-    switch (currentStatus) {
-        case PHAuthorizationStatusAuthorized:
-            // 已授权直接执行
-            break;
-        case PHAuthorizationStatusDenied:
-            SaveMediaErrorAlert(SaveMediaErrorAuthorizationDenied);
-            return;
-        case PHAuthorizationStatusNotDetermined:
-        case PHAuthorizationStatusRestricted:
-            // 需要请求授权
-            [PHPhotoLibrary requestAuthorization:^(PHAuthorizationStatus status) {
-                if (status != PHAuthorizationStatusAuthorized) {
-                    SaveMediaErrorAlert(status == PHAuthorizationStatusDenied ? 
-                                       SaveMediaErrorAuthorizationDenied :
-                                       SaveMediaErrorInvalidMediaType);
-                    return;
-                }
-                [self performSaveWithMediaURL:mediaURL mediaType:mediaType];
-            }];
-            return;
-    }
-    
-    [self performSaveWithMediaURL:mediaURL mediaType:mediaType];
-}
-
-static void performSaveWithMediaURL(NSURL *mediaURL, MediaType mediaType) {
-    PHAssetCreationRequest *request = createAssetRequest(mediaURL, mediaType);
-    if (!request) {
-        SaveMediaErrorAlert(SaveMediaErrorFileReadError);
-        return;
-    }
-    
-    [[PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
-        [[PHAssetCollectionChangeRequest defaultCollection] 
-         addAssets:@[request.placeholderForCreatedAsset]];
-    } completionHandler:^(BOOL success, NSError *error) {
-        handleSaveResult(success, error, mediaURL);
-    }];
-}
-
-// 对外暴露的方法
 static void saveMedia(NSURL *mediaURL, MediaType mediaType) {
-    if (!mediaURL || ![mediaURL isFileURL]) {
-        SaveMediaErrorAlert(SaveMediaErrorInvalidMediaType);
-        return;
-    }
-    
-    dispatch_queue_t queue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
-    dispatch_async(queue, ^{
-        saveMediaInternal(mediaURL, mediaType);
-    });
+    if (mediaType == MediaTypeAudio) return;
+    [PHPhotoLibrary requestAuthorization:^(PHAuthorizationStatus status) {
+        if (status == PHAuthorizationStatusAuthorized) {
+            [[PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
+                if (mediaType == MediaTypeVideo) {
+                    [PHAssetChangeRequest creationRequestForAssetFromVideoAtFileURL:mediaURL];
+                } else if (mediaType == MediaTypeImage) {
+                    UIImage *image = [UIImage imageWithContentsOfFile:mediaURL.path];
+                    if (image) [PHAssetChangeRequest creationRequestForAssetFromImage:image];
+                }
+            } completionHandler:^(BOOL success, NSError *error) {
+                if (success) {
+                    NSString *msg = [NSString stringWithFormat:@"%@已保存到相册", mediaType == MediaTypeVideo ? @"视频" : @"图片"];
+                    showToast(msg);
+                } else {
+                    showToast(@"保存失败");
+                }
+                [[NSFileManager defaultManager] removeItemAtURL:mediaURL error:nil];
+            }];
+        }
+    }];
 }
 
 
 static void downloadMedia(NSURL *url, MediaType mediaType) {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        NSURLSession *session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration]];
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        NSURLSession *session = [MediaDownloader sharedDownloader].session;
         NSURLSessionDownloadTask *downloadTask = [session downloadTaskWithURL:url completionHandler:^(NSURL *location, NSURLResponse *response, NSError *error) {
-            if (!error) {
-                NSString *fileName = url.lastPathComponent;
-                if (!fileName.pathExtension.length) {
-                    switch (mediaType) {
-                        case MediaTypeVideo: fileName = [fileName stringByAppendingPathExtension:@"mp4"]; break;
-                        case MediaTypeImage: fileName = [fileName stringByAppendingPathExtension:@"jpg"]; break;
-                        case MediaTypeAudio: fileName = [fileName stringByAppendingPathExtension:@"mp3"]; break;
-                    }
-                }
-                NSURL *tempDir = [NSURL fileURLWithPath:NSTemporaryDirectory()];
-                NSURL *destinationURL = [tempDir URLByAppendingPathComponent:fileName];
-                [[NSFileManager defaultManager] moveItemAtURL:location toURL:destinationURL error:nil];
-                if (mediaType == MediaTypeAudio) {
-                    dispatch_async(dispatch_get_main_queue(), ^{
-                        UIActivityViewController *activityVC = [[UIActivityViewController alloc] initWithActivityItems:@[destinationURL] applicationActivities:nil];
-                        [activityVC setCompletionWithItemsHandler:^(UIActivityType _Nullable activityType, BOOL completed, NSArray * _Nullable returnedItems, NSError * _Nullable error) {
-                            [[NSFileManager defaultManager] removeItemAtURL:destinationURL error:nil];
-                        }];
-                        UIViewController *topVC = topView();
-                        if (topVC) [topVC presentViewController:activityVC animated:YES completion:nil];
-                    });
-                } else {
-                    saveMedia(destinationURL, mediaType);
-                }
-            } else {
+            if (error) {
+                NSLog(@"下载失败: %@", error.localizedDescription);
                 showToast(@"下载失败");
+                return;
             }
+
+            NSString *fileName = url.lastPathComponent;
+            NSDictionary<MediaType, NSString *> *extensionMap = @{
+                MediaTypeVideo: @"mp4",
+                MediaTypeImage: @"jpg",
+                MediaTypeAudio: @"mp3"
+            };
+            NSString *extension = extensionMap[mediaType];
+            if (!fileName.pathExtension.length && extension) {
+                fileName = [fileName stringByAppendingPathExtension:extension];
+            }
+
+            NSURL *tempDir = [NSURL fileURLWithPath:NSTemporaryDirectory()];
+            NSURL *destinationURL = [tempDir URLByAppendingPathComponent:fileName];
+
+            dispatch_queue_t fileQueue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
+            dispatch_async(fileQueue, ^{
+                NSError *moveError = nil;
+                if ([[NSFileManager defaultManager] moveItemAtURL:location 
+                                          toURL:destinationURL 
+                                          error:&moveError]) {
+                    // 文件移动成功
+                } else {
+                    NSLog(@"文件移动失败: %@", moveError.localizedDescription);
+                }
+
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    if (mediaType == MediaTypeAudio) {
+                        UIViewController *topVC = topView();
+                        if (topVC) {
+                            UIActivityViewController *activityVC = [[UIActivityViewController alloc] initWithActivityItems:@[destinationURL] applicationActivities:nil];
+                            [activityVC setCompletionWithItemsHandler:^(UIActivityType _Nullable activityType, BOOL completed, NSArray * _Nullable returnedItems, NSError * _Nullable error) {
+                                [[NSFileManager defaultManager] removeItemAtURL:destinationURL error:nil];
+                            }];
+                            [topVC presentViewController:activityVC animated:YES completion:nil];
+                        }
+                    } else {
+                        [self saveMediaAsync:destinationURL mediaType:mediaType];
+                    }
+                });
+            });
+
+            // 下载进度监控
+            downloadTask.progressUpdateInterval = 0.1;
+            downloadTask.progressBlock = ^(float progress) {
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    // 更新UI进度
+                });
+            };
         }];
         [downloadTask resume];
     });
