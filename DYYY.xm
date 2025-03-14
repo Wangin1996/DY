@@ -1371,28 +1371,136 @@ void showToast(NSString *text) {
     [%c(DUXToast) showText:text withCenterPoint:topCenter];
 }
 
-static void saveMedia(NSURL *mediaURL, MediaType mediaType) {
-    if (mediaType == MediaTypeAudio) return;
-    [PHPhotoLibrary requestAuthorization:^(PHAuthorizationStatus status) {
-        if (status == PHAuthorizationStatusAuthorized) {
-            [[PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
-                if (mediaType == MediaTypeVideo) {
-                    [PHAssetChangeRequest creationRequestForAssetFromVideoAtFileURL:mediaURL];
-                } else if (mediaType == MediaTypeImage) {
-                    UIImage *image = [UIImage imageWithContentsOfFile:mediaURL.path];
-                    if (image) [PHAssetChangeRequest creationRequestForAssetFromImage:image];
-                }
-            } completionHandler:^(BOOL success, NSError *error) {
-                if (success) {
-                    NSString *msg = [NSString stringWithFormat:@"%@已保存到相册", mediaType == MediaTypeVideo ? @"视频" : @"图片"];
-                    showToast(msg);
-                } else {
-                    showToast(@"保存失败");
-                }
-                [[NSFileManager defaultManager] removeItemAtURL:mediaURL error:nil];
-            }];
+typedef NS_ENUM(NSInteger, SaveMediaError) {
+    SaveMediaErrorNone,
+    SaveMediaErrorAuthorizationDenied,
+    SaveMediaErrorInvalidMediaType,
+    SaveMediaErrorFileReadError,
+    SaveMediaErrorSaveFailed
+};
+
+static NSString *const MediaTypeStrings[] = {
+    [MediaTypeImage] = @"图片",
+    [MediaTypeVideo] = @"视频"
+};
+
+static void SaveMediaErrorAlert(SaveMediaError error) {
+    NSString *message;
+    switch (error) {
+        case SaveMediaErrorAuthorizationDenied:
+            message = @"相册访问被拒绝，请在设置中启用权限";
+            break;
+        case SaveMediaErrorFileReadError:
+            message = @"文件读取失败";
+            break;
+        case SaveMediaErrorSaveFailed:
+            message = @"保存到相册失败";
+            break;
+        default:
+            message = @"未知错误";
+    }
+    showToast(message);
+}
+
+static PHAssetCreationRequest *createAssetRequest(NSURL *url, MediaType mediaType) {
+    if (mediaType == MediaTypeVideo) {
+        return [PHAssetChangeRequest creationRequestForAssetFromVideoAtFileURL:url];
+    } else if (mediaType == MediaTypeImage) {
+        UIImage *image = [UIImage imageWithContentsOfFile:url.path];
+        if (!image) {
+            NSLog(@"警告：图片文件损坏 %@", url.path);
+            return nil;
         }
+        return [PHAssetChangeRequest creationRequestForAssetFromImage:image];
+    }
+    return nil;
+}
+
+static void handleSaveResult(BOOL success, NSError *error, NSURL *mediaURL) {
+    if (success) {
+        showToast([NSString stringWithFormat:@"%@已保存到相册", 
+                  MediaTypeStrings[mediaType]]);
+        // 建议在异步操作后删除文件
+        dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_LOW, 0), ^{
+            [[NSFileManager defaultManager] removeItemAtURL:mediaURL error:nil];
+        });
+    } else {
+        SaveMediaError errorCode = SaveMediaErrorSaveFailed;
+        if ([error domain isEqualToString:PHPhotoLibraryErrorDomain]) {
+            NSInteger code = [error code];
+            switch (code) {
+                case PHPhotoLibraryErrorAuthorizationDenied:
+                    errorCode = SaveMediaErrorAuthorizationDenied;
+                    break;
+                // 其他PHPhotoLibrary错误处理...
+            }
+        } else if (error.code == NSFileReadNoSuchFileError) {
+            errorCode = SaveMediaErrorFileReadError;
+        }
+        
+        SaveMediaErrorAlert(errorCode);
+        // 保留原始文件供用户重试
+    }
+}
+
+static void saveMediaInternal(NSURL *mediaURL, MediaType mediaType) {
+    if (mediaType == MediaTypeAudio) {
+        SaveMediaErrorAlert(SaveMediaErrorInvalidMediaType);
+        return;
+    }
+    
+    PHAuthorizationStatus currentStatus = [PHPhotoLibrary authorizationStatus];
+    switch (currentStatus) {
+        case PHAuthorizationStatusAuthorized:
+            // 已授权直接执行
+            break;
+        case PHAuthorizationStatusDenied:
+            SaveMediaErrorAlert(SaveMediaErrorAuthorizationDenied);
+            return;
+        case PHAuthorizationStatusNotDetermined:
+        case PHAuthorizationStatusRestricted:
+            // 需要请求授权
+            [PHPhotoLibrary requestAuthorization:^(PHAuthorizationStatus status) {
+                if (status != PHAuthorizationStatusAuthorized) {
+                    SaveMediaErrorAlert(status == PHAuthorizationStatusDenied ? 
+                                       SaveMediaErrorAuthorizationDenied :
+                                       SaveMediaErrorInvalidMediaType);
+                    return;
+                }
+                [self performSaveWithMediaURL:mediaURL mediaType:mediaType];
+            }];
+            return;
+    }
+    
+    [self performSaveWithMediaURL:mediaURL mediaType:mediaType];
+}
+
+static void performSaveWithMediaURL(NSURL *mediaURL, MediaType mediaType) {
+    PHAssetCreationRequest *request = createAssetRequest(mediaURL, mediaType);
+    if (!request) {
+        SaveMediaErrorAlert(SaveMediaErrorFileReadError);
+        return;
+    }
+    
+    [[PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
+        [[PHAssetCollectionChangeRequest defaultCollection] 
+         addAssets:@[request.placeholderForCreatedAsset]];
+    } completionHandler:^(BOOL success, NSError *error) {
+        handleSaveResult(success, error, mediaURL);
     }];
+}
+
+// 对外暴露的方法
+static void saveMedia(NSURL *mediaURL, MediaType mediaType) {
+    if (!mediaURL || ![mediaURL isFileURL]) {
+        SaveMediaErrorAlert(SaveMediaErrorInvalidMediaType);
+        return;
+    }
+    
+    dispatch_queue_t queue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
+    dispatch_async(queue, ^{
+        saveMediaInternal(mediaURL, mediaType);
+    });
 }
 
 
