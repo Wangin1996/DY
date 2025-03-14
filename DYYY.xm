@@ -1405,8 +1405,9 @@ static void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType);
                             [urls addObject:[NSURL URLWithString:currentImage.urlList.firstObject]];
                         }
                         // 添加视频URL
-                        if (currentImage.clipVideo.h264URL.originURLList.count > 0) {
-                            [urls addObject:[NSURL URLWithString:currentImage.clipVideo.h264URL.originURLList.firstObject]];
+
+                        if (aweme.video.h264URL.originURLList.count > 0) {
+                            [urls addObject:[NSURL URLWithString:aweme.video.h264URL.originURLList.firstObject]];
                         }
                         if (urls.count == 2) {
                             downloadMedia(urls, MediaTypeLivePhoto);
