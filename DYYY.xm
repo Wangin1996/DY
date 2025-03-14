@@ -1381,10 +1381,13 @@ static void systemVibrate() {
 static dispatch_group_t saveGroup = NULL;
 static NSInteger currentOperations = 0;
 
+static dispatch_group_t saveGroup = NULL;
+static NSInteger currentOperations = 0; // 需保留但需修正使用方式
+
 static void saveMedia(NSURL *mediaURL, MediaType mediaType) {
     if (mediaType == MediaTypeAudio) return;
     
-    // 确保每次调用都使用同一个group（需在首次调用时创建）
+    // 使用同一个Group（首次创建）
     if (!saveGroup) {
         saveGroup = dispatch_group_create();
     }
@@ -1392,52 +1395,40 @@ static void saveMedia(NSURL *mediaURL, MediaType mediaType) {
     [PHPhotoLibrary requestAuthorization:^(PHAuthorizationStatus status) {
         if (status != PHAuthorizationStatusAuthorized) {
             [[NSFileManager defaultManager] removeItemAtURL:mediaURL error:nil];
-            currentOperations--;
-            if (currentOperations == 0) {
-                dispatch_group_notify(saveGroup, dispatch_get_main_queue(), ^{
-                    showToast(@"保存失败");
-                    saveGroup = NULL;
-                    currentOperations = 0;
-                });
-            }
+            currentOperations--; // 修复：授权失败时不应修改计数
             return;
         }
         
         currentOperations++;
-        [[PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
+        dispatch_group_enter(saveGroup); // 修复：确保在异步操作前进入Group
+        
+        [PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
+            // 创建请求（逻辑不变）
             if (mediaType == MediaTypeVideo) {
                 [PHAssetChangeRequest creationRequestForAssetFromVideoAtFileURL:mediaURL];
-            } else if (mediaType == MediaTypeImage) {
+            } else {
                 UIImage *image = [UIImage imageWithContentsOfFile:mediaURL.path];
                 if (image) [PHAssetChangeRequest creationRequestForAssetFromImage:image];
             }
         } completionHandler:^(BOOL success, NSError *error) {
             currentOperations--;
             if (success) {
-                	NSString *msg = [NSString stringWithFormat:@"%@已保存到相册", 
-                	mediaType == MediaTypeVideo ? @"视频" : @"图片"];
+                NSString *msg = [NSString stringWithFormat:@"%@已保存到相册", 
+                    mediaType == MediaTypeVideo ? @"视频" : @"图片"];
+                systemVibrate();
+                showToast(msg);
             } else {
-                        showToast(@"保存失败");
+                showToast(@"保存失败");
             }
             
-            if (currentOperations == 0) {
+            if (currentOperations == 0) { // 修复：仅在计数归零时触发通知
                 dispatch_group_notify(saveGroup, dispatch_get_main_queue(), ^{
-                    // 所有操作完成后的统一处理
-                    if (success) {
-			NSString *msg = [NSString stringWithFormat:@"%@已保存到相册",
-			mediaType == MediaTypeVideo ? @"视频" : @"图片"];
-                	systemVibrate();
-                        showToast(msg);
-                    } else {
-                        showToast(@"保存失败");
-                    }
-                    saveGroup = NULL;
-                    currentOperations = 0;
+                    saveGroup = NULL; // 重置Group
+                    currentOperations = 0; // 重置计数器
                 });
             }
             [[NSFileManager defaultManager] removeItemAtURL:mediaURL error:nil];
         }];
-        dispatch_group_enter(saveGroup);
     }];
 }
 
