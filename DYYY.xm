@@ -1389,6 +1389,7 @@ static void saveMedia(NSURL *mediaURL, MediaType mediaType) {
                 if (success) {
                     NSString *msg = [NSString stringWithFormat:@"%@已保存到相册", mediaType == MediaTypeVideo ? @"视频" : @"图片"];
                     UIFeedbackGenerator *generator = [UIFeedbackGenerator new];
+                    [generator feedbackOccurred(UIFeedbackGeneratorImpactLight)];
                     showToast(msg);
                 } else {
                     showToast(@"保存失败");
