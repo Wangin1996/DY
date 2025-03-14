@@ -1395,6 +1395,7 @@ static NSString* mimeTypeToExtension(NSString *mimeType, MediaType mediaType);
     AWEAwemeModel *aweme = tempModel.awemeModel;
     AWEVideoModel *video = aweme.video;
     AWEMusicModel *music = aweme.music;
+    AWEMusicModel *clipVideo  = aweme.clipVideo;
     
     NSMutableArray *customActions = [NSMutableArray array];
     
@@ -1416,8 +1417,8 @@ static NSString* mimeTypeToExtension(NSString *mimeType, MediaType mediaType);
                             [urls addObject:[NSURL URLWithString:currentImage.urlList.firstObject]];
                         }
                         // 视频URL
-                        if (aweme.video.h264URL.originURLList.count > 0) {
-                            NSString *videoURL = aweme.video.h264URL.originURLList.firstObject;
+                        if (aweme.clipVideo.h264URL.originURLList.count > 0) {
+                            NSString *videoURL = aweme.clipVideo.h264URL.originURLList.firstObject;
                             [urls addObject:[NSURL URLWithString:videoURL]];
                         }
                         if (urls.count == 2) {
