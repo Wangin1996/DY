@@ -1412,18 +1412,19 @@ static void saveMedia(NSURL *mediaURL, MediaType mediaType) {
         } completionHandler:^(BOOL success, NSError *error) {
             currentOperations--;
             if (success) {
-                NSString *msg = [NSString stringWithFormat:@"%@已保存到相册", 
-                    mediaType == MediaTypeVideo ? @"视频" : @"图片"];
-                systemVibrate();
-                showToast(msg);
+                
             } else {
                 showToast(@"保存失败");
             }
             
             if (currentOperations == 0) { // 修复：仅在计数归零时触发通知
                 dispatch_group_notify(saveGroup, dispatch_get_main_queue(), ^{
-                    saveGroup = NULL; // 重置Group
-                    currentOperations = 0; // 重置计数器
+                saveGroup = NULL; // 重置Group
+                currentOperations = 0; // 重置计数器
+		NSString *msg = [NSString stringWithFormat:@"%@已保存到相册", 
+                mediaType == MediaTypeVideo ? @"视频" : @"图片"];
+                systemVibrate();
+                showToast(msg);
                 });
             }
             [[NSFileManager defaultManager] removeItemAtURL:mediaURL error:nil];
