@@ -1383,7 +1383,7 @@ static NSString* mimeTypeToExtension(NSString *mimeType, MediaType mediaType);
 
 - (NSArray *)dataArray {
     NSArray *originalArray = %orig;
-    BOOL enableDownload = [[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYEnableDownload"];
+    BOOL enableDownload = [[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYlongpressdownload"];
     if (!enableDownload) return originalArray;
     
     // 创建新分组
