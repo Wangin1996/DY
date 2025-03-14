@@ -1470,34 +1470,23 @@ static void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
 }
 
 %hook AWELongPressPanelTableViewController
-%property (nonatomic, weak) __weak typeof(self) weakSelf;
 - (NSArray *)dataArray {
     NSArray *originalArray = %orig;
     if (![[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYlongpressdownload"]) return originalArray;
-    self.weakSelf = self;
+    
     // 创建新分组
     AWELongPressPanelViewGroupModel *newGroup = [[%c(AWELongPressPanelViewGroupModel) alloc] init];
     newGroup.groupType = 0;
-
-    __weak typeof(self) weakSelf = self;
-
+    
     // 获取数据模型
     AWELongPressPanelBaseViewModel *tempModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
     AWEAwemeModel *aweme = tempModel.awemeModel;
     AWEVideoModel *video = aweme.video;
     AWEMusicModel *music = aweme.music;
-
-
+    
     // 构建按钮数组
     NSMutableArray *customActions = [NSMutableArray array];
-
     
-    void (^dismissBlock)(void) = ^{
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [weakSelf.presentingViewController dismissViewControllerAnimated:YES completion:nil];
-        });
-    };
-
     // 图片类型处理
     if (aweme.awemeType == 68) { // 图集类型
         [customActions addObject:@{
@@ -1512,7 +1501,6 @@ static void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
                         downloadMedia(@[url], MediaTypeImage);
                     }
                 }
-             dismissBlock();
             }
         }];
         
