@@ -1473,6 +1473,10 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
                             url = [NSURL URLWithString:videoModel.h264URL.originURLList.firstObject];
                             downloadMedia(url, MediaTypeVideo);
                         }
+			dispatch_async(dispatch_get_main_queue(), ^{
+				CGFloat minHeight = [self getLongPressPanelMinimumHeight];
+				[self updateSheetHeightWithHeight:minHeight withMinimumHeight:minHeight];
+			    });
                         break;
                     case 101: // 下载所有图片
                         [awemeModel.albumImages enumerateObjectsUsingBlock:^(AWEImageAlbumImageModel *imageModel, NSUInteger idx, BOOL *stop) {
