@@ -1474,7 +1474,7 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
                             downloadMedia(url, MediaTypeVideo);
                         }
 			dispatch_async(dispatch_get_main_queue(), ^{
-				CGFloat minHeight = [self getLongPressPanelMinimumHeight];
+				CGFloat minHeight = 0;
 				[self updateSheetHeightWithHeight:minHeight withMinimumHeight:minHeight];
 			    });
                         break;
