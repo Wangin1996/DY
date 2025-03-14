@@ -1475,8 +1475,7 @@ typedef void (^DownloadCompletionBlock)(BOOL success, NSURL *assetURL, NSError *
 
 @end
 
-// PhotoLibraryManager.h
-#import <Photos/Photos.h>
+
 
 @interface PhotoLibraryManager : NSObject
 
@@ -1532,15 +1531,7 @@ typedef void (^DownloadCompletionBlock)(BOOL success, NSURL *assetURL, NSError *
 
 @end
 
-// AWELongPressPanelTableViewController+Hook.h
-#import <objc/runtime.h>
-#import "AWELongPressPanelTableViewController.h"
 
-@interface AWELongPressPanelTableViewController (DYYPatch)
-@end
-
-// AWELongPressPanelTableViewController+Hook.m
-@implementation AWELongPressPanelTableViewController (DYYPatch)
 
 %hook AWELongPressPanelTableViewController
 - (NSArray *)dataArray {
