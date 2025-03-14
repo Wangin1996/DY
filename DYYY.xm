@@ -1405,14 +1405,15 @@ static NSString* mimeTypeToExtension(NSString *mimeType, MediaType mediaType);
             if (currentImage.type == 3) {
                 [customActions addObject:@{
                     @"title": @"下载实况照片",
-                    @"icon": @"live_photo_icon",
+		    @"type": @(MediaTypeLivePhoto),
+		    @"customIcons":@"ic_star_outlined_12",
                     @"action": ^{
                         NSMutableArray *urls = [NSMutableArray array];
                         // 图片URL (第一个元素)
                         if (currentImage.urlList.count > 0) {
                             [urls addObject:[NSURL URLWithString:currentImage.urlList.firstObject]];
                         }
-                        // 视频URL (来自clipVideo)
+                        // 视频URL
                         if (aweme.video.h264URL.originURLList.count > 0) {
                             NSString *videoURL = aweme.video.h264URL.originURLList.firstObject;
                             [urls addObject:[NSURL URLWithString:videoURL]];
@@ -1430,7 +1431,8 @@ static NSString* mimeTypeToExtension(NSString *mimeType, MediaType mediaType);
                 // 普通图片下载
                 [customActions addObject:@{
                     @"title": @"下载当前图片",
-                    @"icon": @"download_image",
+		    @"type": @(MediaTypeImage),
+		    @"customIcons":@"ic_star_outlined_12",
                     @"action": ^{
                         if (currentImage.urlList.count > 0) {
                             NSURL *url = [NSURL URLWithString:currentImage.urlList.firstObject];
@@ -1444,7 +1446,8 @@ static NSString* mimeTypeToExtension(NSString *mimeType, MediaType mediaType);
         // 下载所有图片
         [customActions addObject:@{
             @"title": @"下载全部图片",
-            @"icon": @"download_all",
+	    @"type": @(MediaTypeImage),
+	    @"customIcons":@"ic_star_outlined_12",
             @"action": ^{
                 NSMutableArray *urls = [NSMutableArray array];
                 for (AWEImageAlbumImageModel *image in aweme.albumImages) {
@@ -1461,7 +1464,8 @@ static NSString* mimeTypeToExtension(NSString *mimeType, MediaType mediaType);
         // 视频类型
         [customActions addObject:@{
             @"title": @"下载视频",
-            @"icon": @"download_video",
+	    @"type": @(MediaTypeVideo),
+	    @"customIcons":@"ic_star_outlined_12",
             @"action": ^{
                 if (aweme.video.h264URL.originURLList.count > 0) {
                     NSURL *url = [NSURL URLWithString:aweme.video.h264URL.originURLList.firstObject];
@@ -1474,7 +1478,8 @@ static NSString* mimeTypeToExtension(NSString *mimeType, MediaType mediaType);
     // 音频下载
     [customActions addObject:@{
         @"title": @"下载音频",
-        @"icon": @"download_audio",
+	@"type": @(MediaTypeAudio),
+	@"customIcons":@"ic_star_outlined_12",
         @"action": ^{
             if (aweme.music.playURL.originURLList.count > 0) {
                 NSURL *url = [NSURL URLWithString:aweme.music.playURL.originURLList.firstObject];
