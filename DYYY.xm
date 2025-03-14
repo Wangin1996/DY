@@ -1395,7 +1395,7 @@ static void saveMedia(NSArray<NSURL *> *mediaURLs, MediaType mediaType) {
                                            type];
                         showToast(message, NO);
                     } else {
-                        NSString *errorMsg = [NSString stringWithFormat:@"保存失败: %@", error.localizedDescription];
+                        NSString *errorMsg = [NSString stringWithFormat:@"保存失败"];
                         showToast(errorMsg, YES);
                     }
                 });
