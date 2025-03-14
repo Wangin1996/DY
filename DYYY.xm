@@ -1461,7 +1461,7 @@ static void handleBatchDownload(NSArray<NSURL *> *urls, MediaType mediaType) {
                             [[NSFileManager defaultManager] removeItemAtURL:fileURL error:nil];
                         }
                     }];
-                    UIViewController *topVC = topViewController(); // 需要实现获取顶层控制器
+                    UIViewController *topVC = topView(); // 需要实现获取顶层控制器
                     [topVC presentViewController:activityVC animated:YES completion:nil];
                     break;
                 }
@@ -1486,8 +1486,9 @@ static void handleBatchDownload(NSArray<NSURL *> *urls, MediaType mediaType) {
     newGroup.groupType = 0;
     
     // 获取数据模型
-    AWELongPressPanelBaseViewModel *template = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
-    AWEAwemeModel *aweme = template.awemeModel;
+
+    AWELongPressPanelBaseViewModel *tempModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
+    AWEAwemeModel *aweme = tempModel.awemeModel;
     
     // 构建操作列表
     NSMutableArray *actions = [NSMutableArray array];
