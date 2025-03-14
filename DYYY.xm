@@ -13,6 +13,70 @@
 #import <Photos/Photos.h>
 
 
+#define DYYY @"抖音DYYY"
+
+// 获取顶级视图控制器
+static UIViewController *getActiveTopViewController() {
+    UIWindowScene *activeScene = nil;
+    for (UIWindowScene *scene in [UIApplication sharedApplication].connectedScenes) {
+        if (scene.activationState == UISceneActivationStateForegroundActive) {
+            activeScene = scene;
+            break;
+        }
+    }
+    if (!activeScene) {
+        for (id scene in [UIApplication sharedApplication].connectedScenes) {
+            if ([scene isKindOfClass:[UIWindowScene class]]) {
+                activeScene = (UIWindowScene *)scene;
+                break;
+            }
+        }
+    }
+    if (!activeScene) return nil;
+    UIWindow *window = activeScene.windows.firstObject;
+    UIViewController *topController = window.rootViewController;
+    while (topController.presentedViewController) {
+        topController = topController.presentedViewController;
+    }
+    return topController;
+}
+
+// 获取最上层视图控制器
+static UIViewController *topView(void) {
+    UIWindow *window = nil;
+    for (UIWindowScene *scene in [UIApplication sharedApplication].connectedScenes) {
+        if (scene.activationState == UISceneActivationStateForegroundActive) {
+            window = scene.windows.firstObject;
+            break;
+        }
+    }
+    if (!window) {
+        for (UIWindowScene *scene in [UIApplication sharedApplication].connectedScenes) {
+            if ([scene isKindOfClass:[UIWindowScene class]]) {
+                window = scene.windows.firstObject;
+                break;
+            }
+        }
+    }
+    if (!window) return nil;
+    UIViewController *rootVC = window.rootViewController;
+    while (rootVC.presentedViewController) {
+        rootVC = rootVC.presentedViewController;
+    }
+    if ([rootVC isKindOfClass:[UINavigationController class]]) {
+        return ((UINavigationController *)rootVC).topViewController;
+    }
+    return rootVC;
+}
+
+// 媒体类型枚举
+typedef NS_ENUM(NSUInteger, MediaType) {
+    MediaTypeVideo,
+    MediaTypeImage,
+    MediaTypeAudio
+};
+
+
 //去除开屏广告
 %hook BDASplashControllerView
 
@@ -259,6 +323,61 @@
 //    }
 //}
 //%end
+
+
+%hook AWESettingsViewModel // Hook 设置视图模型类
+- (NSArray *)sectionDataArray { // 拦截返回设置页面数据源的方法
+    NSArray *originalSections = %orig; // 获取原始设置项数据
+    
+    // 检查是否已存在 DYYY 模块
+    BOOL sectionExists = NO;
+    for (AWESettingSectionModel *section in originalSections) {
+        if ([section.sectionHeaderTitle isEqualToString:@"DYYY"]) {
+            sectionExists = YES;
+            break;
+        }
+    }
+    
+    // 如果不存在则创建
+    if (!sectionExists) {
+        // 创建新条目
+        AWESettingItemModel *newItem = [[%c(AWESettingItemModel) alloc] init];
+        newItem.identifier = @"DYYY"; // 唯一标识
+        newItem.title = @"抖音助手"; // 显示标题
+        //newItem.detail = @"2.0"; // 副标题/描述
+        newItem.type = 0; // 条目类型
+        newItem.iconImageName = @"noticesettting_like"; // 图标资源名称
+        newItem.cellType = 26; // 单元格样式类型
+        newItem.colorStyle = 2; // 颜色样式
+        newItem.isEnable = YES; // 是否可交互
+        
+        // 点击事件回调
+        newItem.cellTappedBlock = ^(AWESettingItemModel *item) {
+            UIViewController *rootViewController = self.controllerDelegate;
+            DYYYSettingViewController *dyyyVC = [[DYYYSettingViewController alloc] init];
+            [rootViewController.navigationController pushViewController:dyyyVC animated:YES];
+        };
+        
+        // 创建新分区
+        AWESettingSectionModel *newSection = [[%c(AWESettingSectionModel) alloc] init];
+        newSection.itemArray = @[newItem]; // 包含的条目数组
+        newSection.type = 0; // 分区类型
+        newSection.sectionHeaderHeight = 40; // 分区头部高度
+        newSection.sectionHeaderTitle = @"DYYY"; // 分区标题
+        
+        // 插入到数据源首部
+        NSMutableArray *newSections = [NSMutableArray arrayWithArray:originalSections];
+        [newSections insertObject:newSection atIndex:0];
+        
+        return newSections;
+    }
+    
+    return originalSections;
+}
+%end
+
+
+
 
 
 %hook AWEFeedLiveMarkView
@@ -1236,570 +1355,160 @@
 %end
 
 
-
-
-
-
-/*自行扩展功能 本人仅做一个简单的框架*/
-#import "DYYYSettingViewController.h"
-
-
-#define DYYY @"DYYY"
-
-static void *kViewModelKey = &kViewModelKey;
-
-static UIViewController *topView(void){
-    UIWindow *window;
-    for (UIWindowScene *scene in [UIApplication sharedApplication].connectedScenes) {
-        if (scene.activationState == UISceneActivationStateForegroundActive) {
-            window = scene.windows.firstObject;
-            break;
-        }
-    }
-    return window.rootViewController;
-}
-
-static void showTextInputAlert(NSString *title, void (^onConfirm)(id text), void (^onCancel)(void)) {
-    AFDTextInputAlertController *alertController = [[%c(AFDTextInputAlertController) alloc] init];
-    alertController.title = title;
-
-    AFDAlertAction *okAction = [%c(AFDAlertAction) actionWithTitle:@"确定" style:0 handler:^{
-        if (onConfirm) {
-            onConfirm(alertController.textField.text);
-        }
-    }];
-
-    AFDAlertAction *noAction = [%c(AFDAlertAction) actionWithTitle:@"取消" style:1 handler:^{
-        if (onCancel) {
-            onCancel();
-        }
-    }];
-
-    alertController.actions = @[noAction, okAction];
-
-    AFDTextField *textField = [[%c(AFDTextField) alloc] init];
-    textField.textMaxLength = 50;
-    alertController.textField = textField;
-
-    dispatch_async(dispatch_get_main_queue(), ^{
-        [topView() presentViewController:alertController animated:YES completion:nil];
-    });
-}
-
-bool getUserDefaults(NSString *key) {
-    return [[NSUserDefaults standardUserDefaults] boolForKey:key];
-}
-
-%hook AWESettingBaseViewController
-
-- (bool)useCardUIStyle {
-    return YES;
-}
-
-- (AWESettingBaseViewModel *)viewModel {
-    AWESettingBaseViewModel *original = %orig;
-    if (!original) {
-        return objc_getAssociatedObject(self, kViewModelKey);
-    }
-    return original;
-}
-
-%end
-
-
-
-
-
-
-
-
-
-
-
-%hook AWESettingsViewModel
-
-- (NSArray *)sectionDataArray {
-    NSArray *originalSections = %orig;
-
-    BOOL sectionExists = NO;
-    for (AWESettingSectionModel *section in originalSections) {
-        if ([section.sectionHeaderTitle isEqualToString:DYYY]) {
-            sectionExists = YES;
-            break;
-        }
-    }
-
-    if (self.traceEnterFrom && !sectionExists) {
-        AWESettingItemModel *newItem = [[%c(AWESettingItemModel) alloc] init];
-        newItem.identifier = DYYY;
-        newItem.title = @"抖音助手";
-        //newItem.detail = @"2.0-9";
-        newItem.type = 0;
-        newItem.iconImageName = @"noticesettting_like";
-        newItem.cellType = 26;
-        newItem.colorStyle = 2;
-        newItem.isEnable = YES;
-
-        newItem.cellTappedBlock = ^{
-            UIViewController *rootViewController = self.controllerDelegate;
-
-            AWESettingBaseViewController *settingsVC = [[%c(AWESettingBaseViewController) alloc] init];
-
-            AWENavigationBar *navigationBar = nil;
-
-            for (UIView *subview in settingsVC.view.subviews) {
-                if ([subview isKindOfClass:%c(AWENavigationBar)]) {
-                    navigationBar = (AWENavigationBar *)subview;
-                    break;
-                }
-            }
-
-            if (navigationBar) {
-                navigationBar.titleLabel.text = DYYY;
-            }
-
-            AWESettingsViewModel *viewModel = [[%c(AWESettingsViewModel) alloc] init];
-            viewModel.colorStyle = 0;
-
-            
-            /*=====基本设置=====*/
-
-            AWESettingSectionModel *basicSettingsSection = [[%c(AWESettingSectionModel) alloc] init];
-            basicSettingsSection.sectionHeaderTitle = @"基本设置";
-            basicSettingsSection.sectionHeaderHeight = 40;
-            basicSettingsSection.type = 0;
-
-            NSMutableArray<AWESettingItemModel *> *basicSettingsItems = [NSMutableArray array];
-
-            NSArray *basicSettings = @[
-                @{@"identifier": @"DYYYEnableDanmuColor", @"title": @"开启弹幕改色", @"detail": @"", @"cellType": @6, @"imageName": @"ic_gear_filled"},
-                @{@"identifier": @"DYYYdanmuColor", @"title": @"修改弹幕颜色", @"detail": @"十六进制", @"cellType": @26, @"imageName": @"ic_gear_filled"},
-                @{@"identifier": @"DYYYisDarkKeyBoard", @"title": @"启用深色键盘", @"detail": @"", @"cellType": @6, @"imageName": @"ic_gear_filled"},
-                @{@"identifier": @"DYYYisShowSchedule", @"title": @"启用视频进度", @"detail": @"", @"cellType": @6, @"imageName": @"ic_gear_filled"},
-                @{@"identifier": @"DYYYisEnableAutoPlay", @"title": @"启用自动播放", @"detail": @"", @"cellType": @6, @"imageName": @"ic_gear_filled"},
-                @{@"identifier": @"DYYYisSkipLive", @"title": @"启用过滤直播", @"detail": @"", @"cellType": @6, @"imageName": @"ic_gear_filled"},
-                @{@"identifier": @"DYYYisEnablePure", @"title": @"启用首页净化", @"detail": @"", @"cellType": @6, @"imageName": @"ic_gear_filled"},
-                @{@"identifier": @"DYYYisEnableFullScreen", @"title": @"启用首页全屏", @"detail": @"", @"cellType": @6, @"imageName": @"ic_gear_filled"},
-                @{@"identifier": @"DYYYisEnableCommentBlur", @"title": @"评论区毛玻璃", @"detail": @"", @"cellType": @6, @"imageName": @"ic_gear_filled"},
-                @{@"identifier": @"DYYYisEnableArea", @"title": @"时间属地显示", @"detail": @"", @"cellType": @6, @"imageName": @"ic_gear_filled"},
-                @{@"identifier": @"DYYYisHideStatusbar", @"title": @"隐藏系统顶栏", @"detail": @"", @"cellType": @6, @"imageName": @"ic_gear_filled"},
-                @{@"identifier": @"DYYYfollowTips", @"title": @"关注二次确认", @"detail": @"", @"cellType": @6, @"imageName": @"ic_gear_filled"},
-                @{@"identifier": @"DYYYcollectTips", @"title": @"收藏二次确认", @"detail": @"", @"cellType": @6, @"imageName": @"ic_gear_filled"}
-            ];
-
-            for (NSDictionary *dict in basicSettings) {
-                AWESettingItemModel *item = [[%c(AWESettingItemModel) alloc] init];
-                item.identifier = dict[@"identifier"];
-                item.title = dict[@"title"];
-                NSString *savedDetail = [[NSUserDefaults standardUserDefaults] objectForKey:item.identifier];
-                item.detail = savedDetail ? savedDetail : dict[@"detail"];
-                item.type = 1000;
-                item.svgIconImageName = dict[@"imageName"];
-                item.cellType = [dict[@"cellType"] integerValue];
-                item.colorStyle = 0;
-                item.isEnable = YES;
-
-                item.isSwitchOn = [[NSUserDefaults standardUserDefaults] objectForKey:item.identifier] ? getUserDefaults(item.identifier) : NO;
-
-                if (item.cellType == 26) {
-                    item.cellTappedBlock = ^{
-                        showTextInputAlert(item.title, ^(NSString *text) {
-                            NSLog(@"OK");
-                        }, ^{
-                            NSLog(@"Cancel");
-                        });
-                    };
-                } else {
-                    item.switchChangedBlock = ^{
-                        BOOL isSwitchOn = !item.isSwitchOn;
-                        item.isSwitchOn = isSwitchOn;
-                        [[NSUserDefaults standardUserDefaults] setBool:isSwitchOn forKey:item.identifier];
-                        [[NSUserDefaults standardUserDefaults] synchronize];
-                    };
-                }
-
-                [basicSettingsItems addObject:item];
-            }
-
-            basicSettingsSection.itemArray = basicSettingsItems;
-
-            /*=====界面设置=====*/
-
-            AWESettingSectionModel *uiSettingsSection = [[%c(AWESettingSectionModel) alloc] init];
-            uiSettingsSection.sectionHeaderTitle = @"界面设置";
-            uiSettingsSection.sectionHeaderHeight = 40;
-            uiSettingsSection.type = 0;
-
-            NSMutableArray<AWESettingItemModel *> *uiSettingsItems = [NSMutableArray array];
-
-            NSArray *uiSettings = @[
-                @{@"identifier": @"DYYYtopbartransparent", @"title": @"设置顶栏透明", @"detail": @"0-1小数", @"cellType": @26, @"imageName": @"ic_ipadiphone_outlined"},
-                @{@"identifier": @"DYYYGlobalTransparency", @"title": @"设置全局透明", @"detail": @"0-1的小数", @"cellType": @26, @"imageName": @"ic_ipadiphone_outlined"},
-                @{@"identifier": @"DYYYDefaultSpeed", @"title": @"设置默认倍速", @"detail": @"", @"cellType": @26, @"imageName": @"ic_ipadiphone_outlined"},
-                @{@"identifier": @"DYYYIndexTitle", @"title": @"设置首页标题", @"detail": @"不填默认", @"cellType": @26, @"imageName": @"ic_ipadiphone_outlined"},
-                @{@"identifier": @"DYYYFriendsTitle", @"title": @"设置朋友标题", @"detail": @"不填默认", @"cellType": @26, @"imageName": @"ic_ipadiphone_outlined"},
-                @{@"identifier": @"DYYYMsgTitle", @"title": @"设置消息标题", @"detail": @"不填默认", @"cellType": @26, @"imageName": @"ic_ipadiphone_outlined"},
-                @{@"identifier": @"DYYYSelfTitle", @"title": @"设置我的标题", @"detail": @"不填默认", @"cellType": @26, @"imageName": @"ic_ipadiphone_outlined"}
-            ];
-
-            for (NSDictionary *dict in uiSettings) {
-                AWESettingItemModel *item = [[%c(AWESettingItemModel) alloc] init];
-                item.identifier = dict[@"identifier"];
-                item.title = dict[@"title"];
-                NSString *savedDetail = [[NSUserDefaults standardUserDefaults] objectForKey:item.identifier];
-                item.detail = savedDetail ? savedDetail : dict[@"detail"];
-                item.type = 1000;
-                item.svgIconImageName = dict[@"imageName"];
-                item.cellType = [dict[@"cellType"] integerValue];
-                item.colorStyle = 0;
-                item.isEnable = YES;
-
-                if (item.cellType == 26) {
-                    item.cellTappedBlock = ^{
-                        // 举例
-                        if ([item.identifier isEqualToString:@"DYYYtopbartransparent"]) {
-                            showTextInputAlert(item.title, ^(id text) {
-                                [[NSUserDefaults standardUserDefaults] setObject:text forKey:item.identifier];
-                                [[NSUserDefaults standardUserDefaults] synchronize];
-                            }, ^{
-                                NSLog(@"Cancel");
-                            });
-                        }
-                    };
-                } else {
-                    item.isSwitchOn = [[NSUserDefaults standardUserDefaults] objectForKey:item.identifier] ? getUserDefaults(item.identifier) : NO;
-                    item.switchChangedBlock = ^{
-                        BOOL isSwitchOn = !item.isSwitchOn;
-                        item.isSwitchOn = isSwitchOn;
-                        [[NSUserDefaults standardUserDefaults] setBool:isSwitchOn forKey:item.identifier];
-                        [[NSUserDefaults standardUserDefaults] synchronize];
-                    };
-                }
-
-                [uiSettingsItems addObject:item];
-            }
-
-            uiSettingsSection.itemArray = uiSettingsItems;
-
-            /*=====隐藏设置=====*/
-
-            AWESettingSectionModel *hideSettingsSection = [[%c(AWESettingSectionModel) alloc] init];
-            hideSettingsSection.sectionHeaderTitle = @"隐藏设置";
-            hideSettingsSection.sectionHeaderHeight = 40;
-            hideSettingsSection.type = 0;
-
-            NSMutableArray<AWESettingItemModel *> *hideSettingsItems = [NSMutableArray array];
-
-            NSArray *hideSettings = @[
-                @{@"identifier": @"DYYYisHiddenEntry", @"title": @"隐藏全屏观看", @"detail": @"", @"cellType": @6, @"imageName": @"ic_xmark_outlined_16"},
-                @{@"identifier": @"DYYYHideShopButton", @"title": @"隐藏底栏商城", @"detail": @"", @"cellType": @6, @"imageName": @"ic_xmark_outlined_16"},
-                @{@"identifier": @"DYYYHideMessageButton", @"title": @"隐藏底栏信息", @"detail": @"", @"cellType": @6, @"imageName": @"ic_xmark_outlined_16"},
-                @{@"identifier": @"DYYYHideFriendsButton", @"title": @"隐藏底栏朋友", @"detail": @"", @"cellType": @6, @"imageName": @"ic_xmark_outlined_16"},
-                @{@"identifier": @"DYYYisHiddenJia", @"title": @"隐藏底栏加号", @"detail": @"", @"cellType": @6, @"imageName": @"ic_xmark_outlined_16"},
-                @{@"identifier": @"DYYYisHiddenBottomDot", @"title": @"隐藏底栏红点", @"detail": @"", @"cellType": @6, @"imageName": @"ic_xmark_outlined_16"},
-                @{@"identifier": @"DYYYisHiddenBottomBg", @"title": @"隐藏底栏背景", @"detail": @"", @"cellType": @6, @"imageName": @"ic_xmark_outlined_16"},
-                @{@"identifier": @"DYYYisHiddenSidebarDot", @"title": @"隐藏侧栏红点", @"detail": @"", @"cellType": @6, @"imageName": @"ic_xmark_outlined_16"},
-                @{@"identifier": @"DYYYHideLikeButton", @"title": @"隐藏点赞按钮", @"detail": @"", @"cellType": @6, @"imageName": @"ic_xmark_outlined_16"},
-                @{@"identifier": @"DYYYHideCommentButton", @"title": @"隐藏评论按钮", @"detail": @"", @"cellType": @6, @"imageName": @"ic_xmark_outlined_16"},
-                @{@"identifier": @"DYYYHideCollectButton", @"title": @"隐藏收藏按钮", @"detail": @"", @"cellType": @6, @"imageName": @"ic_xmark_outlined_16"},
-                @{@"identifier": @"DYYYHideAvatarButton", @"title": @"隐藏头像按钮", @"detail": @"", @"cellType": @6, @"imageName": @"ic_xmark_outlined_16"},
-                @{@"identifier": @"DYYYHideMusicButton", @"title": @"隐藏音乐按钮", @"detail": @"", @"cellType": @6, @"imageName": @"ic_xmark_outlined_16"},
-                @{@"identifier": @"DYYYHideShareButton", @"title": @"隐藏分享按钮", @"detail": @"", @"cellType": @6, @"imageName": @"ic_xmark_outlined_16"},
-                @{@"identifier": @"DYYYHideLocation", @"title": @"隐藏视频定位", @"detail": @"", @"cellType": @6, @"imageName": @"ic_xmark_outlined_16"},
-                @{@"identifier": @"DYYYHideDiscover", @"title": @"隐藏右上搜索", @"detail": @"", @"cellType": @6, @"imageName": @"ic_xmark_outlined_16"},
-                @{@"identifier": @"DYYYHideMyPage", @"title": @"隐藏我的页面", @"detail": @"", @"cellType": @6, @"imageName": @"ic_xmark_outlined_16"},
-                @{@"identifier": @"DYYYHideInteractionSearch", @"title": @"隐藏相关搜索", @"detail": @"", @"cellType": @6, @"imageName": @"ic_xmark_outlined_16"},
-                @{@"identifier": @"DYYYHideQuqishuiting", @"title": @"隐藏去汽水听", @"detail": @"", @"cellType": @6, @"imageName": @"ic_xmark_outlined_16"},
-                @{@"identifier": @"DYYYHideHotspot", @"title": @"隐藏热点提示", @"detail": @"", @"cellType": @6, @"imageName": @"ic_xmark_outlined_16"}
-            ];
-
-            for (NSDictionary *dict in hideSettings) {
-                AWESettingItemModel *item = [[%c(AWESettingItemModel) alloc] init];
-                item.identifier = dict[@"identifier"];
-                item.title = dict[@"title"];
-                NSString *savedDetail = [[NSUserDefaults standardUserDefaults] objectForKey:item.identifier];
-                item.detail = savedDetail ? savedDetail : dict[@"detail"];
-                item.type = 1000;
-                item.svgIconImageName = dict[@"imageName"];
-                item.cellType = [dict[@"cellType"] integerValue];
-                item.colorStyle = 0;
-                item.isEnable = YES;
-
-                item.isSwitchOn = [[NSUserDefaults standardUserDefaults] objectForKey:item.identifier] ? getUserDefaults(item.identifier) : NO;
-
-                if (item.cellType == 26) {
-                    item.cellTappedBlock = ^{
-                        showTextInputAlert(item.title, ^(NSString *text) {
-                            NSLog(@"OK");
-                        }, ^{
-                            NSLog(@"Cancel");
-                        });
-                    };
-                } else {
-                    item.switchChangedBlock = ^{
-                        BOOL isSwitchOn = !item.isSwitchOn;
-                        item.isSwitchOn = isSwitchOn;
-                        [[NSUserDefaults standardUserDefaults] setBool:isSwitchOn forKey:item.identifier];
-                        [[NSUserDefaults standardUserDefaults] synchronize];
-                    };
-                }
-
-                [hideSettingsItems addObject:item];
-            }
-
-            hideSettingsSection.itemArray = hideSettingsItems;
-
-            /*=====顶栏移除=====*/
-
-            AWESettingSectionModel *removeSettingsSection = [[%c(AWESettingSectionModel) alloc] init];
-            removeSettingsSection.sectionHeaderTitle = @"顶栏移除";
-            removeSettingsSection.sectionHeaderHeight = 40;
-            removeSettingsSection.type = 0;
-
-            NSMutableArray<AWESettingItemModel *> *removeSettingsItems = [NSMutableArray array];
-
-            NSArray *removeSettings = @[
-                @{@"identifier": @"DYYYHideHotContainer", @"title": @"移除推荐", @"detail": @"", @"cellType": @6, @"imageName": @"ic_minuscircle_outlined_20"},
-                @{@"identifier": @"DYYYHideFollow", @"title": @"移除关注", @"detail": @"", @"cellType": @6, @"imageName": @"ic_minuscircle_outlined_20"},
-                @{@"identifier": @"DYYYHideMediumVideo", @"title": @"移除精选", @"detail": @"", @"cellType": @6, @"imageName": @"ic_minuscircle_outlined_20"},
-                @{@"identifier": @"DYYYHideMall", @"title": @"移除商城", @"detail": @"", @"cellType": @6, @"imageName": @"ic_minuscircle_outlined_20"},
-                @{@"identifier": @"DYYYHideNearby", @"title": @"移除同城", @"detail": @"", @"cellType": @6, @"imageName": @"ic_minuscircle_outlined_20"},
-                @{@"identifier": @"DYYYHideGroupon", @"title": @"移除团购", @"detail": @"", @"cellType": @6, @"imageName": @"ic_minuscircle_outlined_20"},
-                @{@"identifier": @"DYYYHideTabLive", @"title": @"移除直播", @"detail": @"", @"cellType": @6, @"imageName": @"ic_minuscircle_outlined_20"},
-                @{@"identifier": @"DYYYHidePadHot", @"title": @"移除热点", @"detail": @"", @"cellType": @6, @"imageName": @"ic_minuscircle_outlined_20"},
-                @{@"identifier": @"DYYYHideHangout", @"title": @"移除经验", @"detail": @"", @"cellType": @6, @"imageName": @"ic_minuscircle_outlined_20"}
-            ];
-
-            for (NSDictionary *dict in removeSettings) {
-                AWESettingItemModel *item = [[%c(AWESettingItemModel) alloc] init];
-                item.identifier = dict[@"identifier"];
-                item.title = dict[@"title"];
-                NSString *savedDetail = [[NSUserDefaults standardUserDefaults] objectForKey:item.identifier];
-                item.detail = savedDetail ? savedDetail : dict[@"detail"];
-                item.type = 1000;
-                item.svgIconImageName = dict[@"imageName"];
-                item.cellType = [dict[@"cellType"] integerValue];
-                item.colorStyle = 0;
-                item.isEnable = YES;
-
-                item.isSwitchOn = [[NSUserDefaults standardUserDefaults] objectForKey:item.identifier] ? getUserDefaults(item.identifier) : NO;
-
-                if (item.cellType == 26) {
-                    item.cellTappedBlock = ^{
-                        showTextInputAlert(item.title, ^(NSString *text) {
-                            NSLog(@"OK");
-                        }, ^{
-                            NSLog(@"Cancel");
-                        });
-                    };
-                } else {
-                    item.switchChangedBlock = ^{
-                        BOOL isSwitchOn = !item.isSwitchOn;
-                        item.isSwitchOn = isSwitchOn;
-                        [[NSUserDefaults standardUserDefaults] setBool:isSwitchOn forKey:item.identifier];
-                        [[NSUserDefaults standardUserDefaults] synchronize];
-                    };
-                }
-
-                [removeSettingsItems addObject:item];
-            }
-
-            removeSettingsSection.itemArray = removeSettingsItems;
-
-            /*=====增强设置=====*/
-
-            AWESettingSectionModel *enhanceSettingsSection = [[%c(AWESettingSectionModel) alloc] init];
-            enhanceSettingsSection.sectionHeaderTitle = @"增强设置";
-            enhanceSettingsSection.sectionHeaderHeight = 40;
-            enhanceSettingsSection.type = 0;
-
-            NSMutableArray<AWESettingItemModel *> *enhanceSettingsItems = [NSMutableArray array];
-
-            NSArray *enhanceSettings = @[
-                @{@"identifier": @"DYYYDoubleClickedDownload", @"title": @"双击下载", @"detail": @"无水印保存", @"cellType": @6, @"imageName": @"ic_star_outlined_12"}
-            ];
-
-            for (NSDictionary *dict in enhanceSettings) {
-                AWESettingItemModel *item = [[%c(AWESettingItemModel) alloc] init];
-                item.identifier = dict[@"identifier"];
-                item.title = dict[@"title"];
-                NSString *savedDetail = [[NSUserDefaults standardUserDefaults] objectForKey:item.identifier];
-                item.detail = savedDetail ? savedDetail : dict[@"detail"];
-                item.type = 1000;
-                item.svgIconImageName = dict[@"imageName"];
-                item.cellType = [dict[@"cellType"] integerValue];
-                item.colorStyle = 0;
-                item.isEnable = YES;
-
-                item.isSwitchOn = [[NSUserDefaults standardUserDefaults] objectForKey:item.identifier] ? getUserDefaults(item.identifier) : NO;
-
-                if (item.cellType == 26) {
-                    item.cellTappedBlock = ^{
-                        showTextInputAlert(item.title, ^(NSString *text) {
-                            NSLog(@"OK");
-                        }, ^{
-                            NSLog(@"Cancel");
-                        });
-                    };
-                } else {
-                    item.switchChangedBlock = ^{
-                        BOOL isSwitchOn = !item.isSwitchOn;
-                        item.isSwitchOn = isSwitchOn;
-                        [[NSUserDefaults standardUserDefaults] setBool:isSwitchOn forKey:item.identifier];
-                        [[NSUserDefaults standardUserDefaults] synchronize];
-                    };
-                }
-
-                [enhanceSettingsItems addObject:item];
-            }
-
-            enhanceSettingsSection.itemArray = enhanceSettingsItems;
-
-            viewModel.sectionDataArray = @[basicSettingsSection, uiSettingsSection, hideSettingsSection, removeSettingsSection, enhanceSettingsSection];
-
-            objc_setAssociatedObject(settingsVC, kViewModelKey, viewModel, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-
-            [rootViewController.navigationController pushViewController:settingsVC animated:YES];
-        };
-
-        AWESettingSectionModel *newSection = [[%c(AWESettingSectionModel) alloc] init];
-        newSection.itemArray = @[newItem];
-        newSection.type = 0;
-        newSection.sectionHeaderHeight = 40;
-        newSection.sectionHeaderTitle = DYYY;
-
-        NSMutableArray<AWESettingSectionModel *> *newSections = [NSMutableArray arrayWithArray:originalSections];
-        [newSections insertObject:newSection atIndex:0];
-
-        return newSections;
-    }
-
-    return originalSections;
-}
-
-%end
-
-
-
-
-
-
-
-
+@interface DUXToast : UIView
++ (void)showText:(id)arg1 withCenterPoint:(CGPoint)arg2;
++ (void)showText:(id)arg1;
+@end
+
+
+CGPoint topCenter = CGPointMake(
+    CGRectGetMidX([UIScreen mainScreen].bounds),
+    CGRectGetMinY([UIScreen mainScreen].bounds) + 90
+);
 
 void showToast(NSString *text) {
-    [%c(DUXToast) showText:text];
+    //[%c(DUXToast) showText:text];
+    [%c(DUXToast) showText:text withCenterPoint:topCenter];
 }
 
-void saveMedia(NSURL *mediaURL, BOOL isVideo) {
+static void saveMedia(NSURL *mediaURL, MediaType mediaType) {
+    if (mediaType == MediaTypeAudio) return;
     [PHPhotoLibrary requestAuthorization:^(PHAuthorizationStatus status) {
         if (status == PHAuthorizationStatusAuthorized) {
             [[PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
-                if (isVideo) {
+                if (mediaType == MediaTypeVideo) {
                     [PHAssetChangeRequest creationRequestForAssetFromVideoAtFileURL:mediaURL];
-                } else {
+                } else if (mediaType == MediaTypeImage) {
                     UIImage *image = [UIImage imageWithContentsOfFile:mediaURL.path];
-                    if (image) {
-                        [PHAssetChangeRequest creationRequestForAssetFromImage:image];
-                    }
+                    if (image) [PHAssetChangeRequest creationRequestForAssetFromImage:image];
                 }
-            } completionHandler:^(BOOL success, NSError * _Nullable error) {
+            } completionHandler:^(BOOL success, NSError *error) {
                 if (success) {
-                    NSString *str = [NSString stringWithFormat:@"%@已保存到相册", isVideo ? @"视频" : @"图片"];
-                    showToast(str);
+                    NSString *msg = [NSString stringWithFormat:@"%@已保存到相册", mediaType == MediaTypeVideo ? @"视频" : @"图片"];
+                    showToast(msg);
                 } else {
                     showToast(@"保存失败");
                 }
-
-                [[NSFileManager defaultManager] removeItemAtPath:mediaURL.path error:nil];
+                [[NSFileManager defaultManager] removeItemAtURL:mediaURL error:nil];
             }];
         }
     }];
 }
 
-void downloadMedia(NSURL *url, BOOL isVideo) {
+
+static void downloadMedia(NSURL *url, MediaType mediaType) {
     dispatch_async(dispatch_get_main_queue(), ^{
-        AWEProgressLoadingView *loadingView = [[%c(AWEProgressLoadingView) alloc] initWithType:0 title:@"保存相册中..."];
-        [loadingView showOnView:topView() animated:YES];
-
-        NSURLSession *session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration] delegate:nil delegateQueue:[NSOperationQueue mainQueue]];
-        NSURLSessionDownloadTask *downloadTask = [session downloadTaskWithURL:url
-            completionHandler:^(NSURL *location, NSURLResponse *response, NSError *error) {
-
-                dispatch_async(dispatch_get_main_queue(), ^{
-                    [loadingView dismissAnimated:YES];
-                });
-
-                if (!error) {
-                    NSString *fileName = url.lastPathComponent;
-                    if (![fileName.pathExtension length] && isVideo) {
-                        fileName = [fileName stringByAppendingPathExtension:@"mp4"];
+        NSURLSession *session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration]];
+        NSURLSessionDownloadTask *downloadTask = [session downloadTaskWithURL:url completionHandler:^(NSURL *location, NSURLResponse *response, NSError *error) {
+            if (!error) {
+                NSString *fileName = url.lastPathComponent;
+                if (!fileName.pathExtension.length) {
+                    switch (mediaType) {
+                        case MediaTypeVideo: fileName = [fileName stringByAppendingPathExtension:@"mp4"]; break;
+                        case MediaTypeImage: fileName = [fileName stringByAppendingPathExtension:@"jpg"]; break;
+                        case MediaTypeAudio: fileName = [fileName stringByAppendingPathExtension:@"mp3"]; break;
                     }
-
-                    NSURL *documentsDirectory = [[[NSFileManager defaultManager] URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask] firstObject];
-                    NSURL *destinationURL = [documentsDirectory URLByAppendingPathComponent:fileName];
-
-                    [[NSFileManager defaultManager] moveItemAtURL:location toURL:destinationURL error:nil];
-
-                    saveMedia(destinationURL, isVideo);
-                } else {
-                    showToast(@"下载失败");
                 }
-            }];
-
+                NSURL *tempDir = [NSURL fileURLWithPath:NSTemporaryDirectory()];
+                NSURL *destinationURL = [tempDir URLByAppendingPathComponent:fileName];
+                [[NSFileManager defaultManager] moveItemAtURL:location toURL:destinationURL error:nil];
+                if (mediaType == MediaTypeAudio) {
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        UIActivityViewController *activityVC = [[UIActivityViewController alloc] initWithActivityItems:@[destinationURL] applicationActivities:nil];
+                        [activityVC setCompletionWithItemsHandler:^(UIActivityType _Nullable activityType, BOOL completed, NSArray * _Nullable returnedItems, NSError * _Nullable error) {
+                            [[NSFileManager defaultManager] removeItemAtURL:destinationURL error:nil];
+                        }];
+                        UIViewController *topVC = topView();
+                        if (topVC) [topVC presentViewController:activityVC animated:YES completion:nil];
+                    });
+                } else {
+                    saveMedia(destinationURL, mediaType);
+                }
+            } else {
+                showToast(@"下载失败");
+            }
+        }];
         [downloadTask resume];
     });
 }
 
-%hook AWEPlayInteractionViewController
 
-- (void)onVideoPlayerViewDoubleClicked:(UITapGestureRecognizer *)tapGes {
-    if (!getUserDefaults(@"DYYYDoubleClickedDownload")) return %orig;
-    AWEAwemeModel *awemeModel = self.model;
+
+
+//长按页面插入无水印下载
+%hook AWELongPressPanelTableViewController
+- (NSArray *)dataArray {
+    NSArray *originalArray = %orig;
+    if (![[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYlongpressdownload"]) return originalArray;
+    
+    // 新增组模型
+    AWELongPressPanelViewGroupModel *newGroupModel = [[%c(AWELongPressPanelViewGroupModel) alloc] init];
+    newGroupModel.groupType = 0;
+    
+    AWELongPressPanelBaseViewModel *tempViewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
+    AWEAwemeModel *awemeModel = tempViewModel.awemeModel;
     AWEVideoModel *videoModel = awemeModel.video;
     AWEMusicModel *musicModel = awemeModel.music;
-
-    UIAlertController *alertController = [UIAlertController alertControllerWithTitle:@"无水印下载" message:nil preferredStyle:UIAlertControllerStyleActionSheet];
-
-    NSString *typeStr = @"下载视频";
-    NSInteger aweType = awemeModel.awemeType;
-
-    if (aweType == 68) typeStr = @"下载图片";
-
-    [alertController addAction:[UIAlertAction actionWithTitle:typeStr style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
-        NSURL *url = nil;
-        if (aweType == 68) {
-            AWEImageAlbumImageModel *currentImageModel = nil;
-            if (awemeModel.albumImages.count == 1) {
-                currentImageModel = [awemeModel.albumImages objectAtIndex:awemeModel.currentImageIndex];
-            } else {
-                currentImageModel = [awemeModel.albumImages objectAtIndex:awemeModel.currentImageIndex - 1];
+    
+    // 新增：获取当前选中的图片模型（关键修复）
+    AWEImageAlbumImageModel *currentImageModel = nil;
+    if (awemeModel.albumImages.count > 0) {
+        currentImageModel = awemeModel.albumImages[awemeModel.currentImageIndex - 1]; // 根据抖音官方索引逻辑
+    }
+    
+    // 根据视频类型判断显示按钮
+    NSArray *customButtons = awemeModel.awemeType == 68 ? 
+        @[@"下载当前图片", @"下载所有图片", @"下载音频"] : 
+        @[@"下载视频", @"下载音频"];  
+    
+    NSArray *customIcons = @[@"ic_xiocan_outlined_20", @"ic_xiocan_outlined_20", @"ic_xiocan_outlined_20"]; 
+    
+    NSMutableArray *viewModels = [NSMutableArray arrayWithCapacity:customButtons.count];
+    for (NSUInteger i = 0; i < customButtons.count; i++) {
+        AWELongPressPanelBaseViewModel *viewModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
+        viewModel.describeString = customButtons[i];
+        viewModel.enterMethod = DYYY;
+        viewModel.actionType = 100 + i;
+        viewModel.showIfNeed = YES;
+        viewModel.duxIconName = customIcons[i];
+        
+        __weak AWELongPressPanelBaseViewModel *weakViewModel = viewModel;
+        viewModel.action = ^{
+            AWELongPressPanelBaseViewModel *strongViewModel = weakViewModel;
+            if (strongViewModel) {
+                NSURL *url = nil;
+                switch (strongViewModel.actionType) {
+                    case 100: // 下载图片（修复后）
+                        if (awemeModel.awemeType == 68) {
+                            // 确保 currentImageModel 已赋值
+                            if (currentImageModel && currentImageModel.urlList.count > 0) {
+                                url = [NSURL URLWithString:currentImageModel.urlList.firstObject];
+                                downloadMedia(url, MediaTypeImage);
+                            }
+                        } else {
+                            url = [NSURL URLWithString:videoModel.h264URL.originURLList.firstObject];
+                            downloadMedia(url, MediaTypeVideo);
+                        }
+                        break;
+                    case 101: // 下载所有图片
+                        [awemeModel.albumImages enumerateObjectsUsingBlock:^(AWEImageAlbumImageModel *imageModel, NSUInteger idx, BOOL *stop) {
+                            if (imageModel.urlList.count > 0) {
+                                NSURL *imageUrl = [NSURL URLWithString:imageModel.urlList.firstObject];
+                                downloadMedia(imageUrl, MediaTypeImage);
+                            }
+                        }];
+                        break;
+                    case 102: // 下载音频
+                        url = [NSURL URLWithString:musicModel.playURL.originURLList.firstObject];
+                        downloadMedia(url, MediaTypeAudio);
+                        break;
+                }
             }
-            url = [NSURL URLWithString:currentImageModel.urlList.firstObject];
-            downloadMedia(url, NO);
-        } else {
-            url = [NSURL URLWithString:videoModel.h264URL.originURLList.firstObject];
-            downloadMedia(url, YES);
-        }
-    }]];
-
-    [alertController addAction:[UIAlertAction actionWithTitle:@"下载音频" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
-        NSURL *url = [NSURL URLWithString:musicModel.playURL.originURLList.firstObject];
-        // 未处理
-    }]];
-
-    [alertController addAction:[UIAlertAction actionWithTitle:@"下载封面" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
-        NSURL *url = [NSURL URLWithString:videoModel.coverURL.originURLList.firstObject];
-        downloadMedia(url, NO);
-    }]];
-
-    [alertController addAction:[UIAlertAction actionWithTitle:@"点赞视频" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
-        %orig;
-    }]];
-
-    [alertController addAction:[UIAlertAction actionWithTitle:@"取消" style:UIAlertActionStyleCancel handler:nil]];
-
-    [self presentViewController:alertController animated:YES completion:nil];
+        };
+        [viewModels addObject:viewModel];
+    }
+    
+    newGroupModel.groupArr = viewModels;
+    return [@[newGroupModel] arrayByAddingObjectsFromArray:originalArray ?: @[]];
 }
-
 %end
