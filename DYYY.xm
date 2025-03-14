@@ -1395,7 +1395,7 @@ static NSString* mimeTypeToExtension(NSString *mimeType, MediaType mediaType);
     AWEAwemeModel *aweme = tempModel.awemeModel;
     AWEVideoModel *video = aweme.video;
     AWEMusicModel *music = aweme.music;
-    AWEMusicModel *clipVideo  = aweme.clipVideo;
+    AWEMusicModel *clipVideo  = tempModel.AWElmageAlbumlmageModel.clipVideo;
     
     NSMutableArray *customActions = [NSMutableArray array];
     
