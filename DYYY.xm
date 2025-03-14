@@ -1380,57 +1380,71 @@ static void systemVibrate() {
 
 
 
-static dispatch_group_t saveGroup = NULL;
-static NSInteger currentOperations = 0;
+static dispatch_group_t currentImageGroup = NULL;
+static NSInteger successfulSavesInGroup = 0;
+static NSInteger totalSavesInGroup = 0;
 
 static void saveMedia(NSURL *mediaURL, MediaType mediaType) {
     if (mediaType == MediaTypeAudio) return;
     
-    // 确保复用同一个 Group
-    if (!saveGroup) {
-        saveGroup = dispatch_group_create();
-    }
-    
     [PHPhotoLibrary requestAuthorization:^(PHAuthorizationStatus status) {
-        if (status != PHAuthorizationStatusAuthorized) {
-            [[NSFileManager defaultManager] removeItemAtURL:mediaURL error:nil];
-            return;
-        }
-        
-        currentOperations++;
-        dispatch_group_enter(saveGroup); // 进入 Group
+        if (status != PHAuthorizationStatusAuthorized) return;
         
         [[PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
-            // 创建 Asset 请求（逻辑不变）
             if (mediaType == MediaTypeVideo) {
                 [PHAssetChangeRequest creationRequestForAssetFromVideoAtFileURL:mediaURL];
-            } else {
+            } else if (mediaType == MediaTypeImage) {
                 UIImage *image = [UIImage imageWithContentsOfFile:mediaURL.path];
-                if (image) [PHAssetChangeRequest creationRequestForAssetFromImage:image];
+                if (image) {
+                    [PHAssetChangeRequest creationRequestForAssetFromImage:image];
+                }
             }
-        } completionHandler:^(BOOL success, NSError *error) {
-            currentOperations--;
+        } completionHandler:^(BOOL success, NSError * _Nullable error) {
+            // 处理图片类型时加入分组
+            if (mediaType == MediaTypeImage) {
+                if (currentImageGroup == NULL) {
+                    currentImageGroup = dispatch_group_create();
+                    totalSavesInGroup = 0;
+                    successfulSavesInGroup = 0;
+                }
+                totalSavesInGroup++;
+                dispatch_group_enter(currentImageGroup);
+            }
             
-            // 移除 completionHandler 中的提示逻辑
-            if (currentOperations == 0) {
-                dispatch_group_notify(saveGroup, dispatch_get_main_queue(), ^{
-                    // 所有操作完成后的统一处理
-                    NSString *msg = success ? 
-                        [NSString stringWithFormat:@"%@已保存到相册", 
-                         mediaType == MediaTypeVideo ? @"视频" : @"图片"] : @"保存失败";
-                    systemVibrate();
-                    showToast(msg);
-                    
-                    // 重置状态
-                    saveGroup = NULL;
-                    currentOperations = 0;
+            if (success) {
+                successfulSavesInGroup++;
+                NSString *msg = [NSString stringWithFormat:@"%@已保存到相册", 
+                                  mediaType == MediaTypeVideo ? @"视频" : @"图片"];
+                UIFeedbackGenerator *generator = [UIFeedbackGenerator new];
+                [generator prepare];
+                showToast(msg); // 假设showToast是已定义的显示提示方法
+            } else {
+                showToast(@"保存失败");
+            }
+            
+            // 离开分组并处理完成回调
+            if (mediaType == MediaTypeImage) {
+                dispatch_group_leave(currentImageGroup);
+                
+                // 所有图片保存完成后检查是否全部成功
+                dispatch_group_notify(currentImageGroup, dispatch_get_main_queue(), ^{
+                    if (successfulSavesInGroup == totalSavesInGroup) {
+                        UIFeedbackGenerator *generator = [UIFeedbackGenerator new];
+                        generator.feedbackType = UIFeedbackGeneratorFeedbackTypeVibration;
+                        [generator prepare];
+                        [generator trigger]; // 触发震动
+                    }
+                    // 释放资源
+                    dispatch_release(currentImageGroup);
+                    currentImageGroup = NULL;
                 });
             }
+            
+            // 删除临时文件
             [[NSFileManager defaultManager] removeItemAtURL:mediaURL error:nil];
         }];
     }];
 }
-
 
 static void downloadMedia(NSURL *url, MediaType mediaType) {
     dispatch_async(dispatch_get_main_queue(), ^{
