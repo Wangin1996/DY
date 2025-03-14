@@ -115,7 +115,9 @@
 @property (nonatomic, strong, readwrite) NSString *iconImageName;
 @property (nonatomic, assign, readwrite) NSInteger cellType;
 @property (nonatomic, assign, readwrite) BOOL isEnable;
+@property (nonatomic, assign, readwrite) BOOL isSwitchOn;
 @property (nonatomic, copy, readwrite) id cellTappedBlock;
+@property (nonatomic, copy, readwrite) id switchChangedBlock;
 @property (nonatomic, assign, readwrite) NSInteger colorStyle;
 @property (nonatomic, strong, readwrite) NSString *detail;
 @end
