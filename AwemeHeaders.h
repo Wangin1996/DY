@@ -28,6 +28,11 @@
 - (CGFloat)getLongPressPanelMinimumHeight;
 @end
 
+//AWElmageAlbumlmageModel
+@interface AWElmageAlbumlmageModel : NSObject
+@property (nonatomic, strong, readwrite) AWEVideoModel *clipVideo;
+@end
+
 // AWEURLModel
 @interface AWEURLModel : NSObject
 @property (nonatomic, copy) NSArray *originURLList;
