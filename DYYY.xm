@@ -1378,8 +1378,7 @@ static void systemVibrate() {
     AudioServicesPlaySystemSound(kSystemSoundID_Vibrate);
 }
 
-static dispatch_group_t saveGroup = NULL;
-static NSInteger currentOperations = 0;
+
 
 static dispatch_group_t saveGroup = NULL;
 static NSInteger currentOperations = 0; // 需保留但需修正使用方式
@@ -1402,7 +1401,7 @@ static void saveMedia(NSURL *mediaURL, MediaType mediaType) {
         currentOperations++;
         dispatch_group_enter(saveGroup); // 修复：确保在异步操作前进入Group
         
-        [PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
+        [[PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
             // 创建请求（逻辑不变）
             if (mediaType == MediaTypeVideo) {
                 [PHAssetChangeRequest creationRequestForAssetFromVideoAtFileURL:mediaURL];
