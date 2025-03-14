@@ -1433,7 +1433,8 @@ static void downloadMedia(NSURL *url, MediaType mediaType) {
                     saveMedia(destinationURL, mediaType);
                 }
             } else {
-                showToast(@"下载失败");
+                NSString *errorMessage = [NSString stringWithFormat:@"下载失败: %@", error.localizedDescription];
+                showToast(errorMessage);
             }
         }];
         [downloadTask resume];
