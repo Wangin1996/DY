@@ -49,7 +49,7 @@
 // AWEImageAlbumImageModel
 @interface AWEImageAlbumImageModel : NSObject
 @property (nonatomic, copy) NSArray *urlList;
-@property (nonatomic, copy) NSinteger type;
+@property (nonatomic, assign, readwrite) NSInteger type;
 @end
 
 //以上为新增
