@@ -1381,12 +1381,12 @@ static void systemVibrate() {
 
 
 static dispatch_group_t saveGroup = NULL;
-static NSInteger currentOperations = 0; // 需保留但需修正使用方式
+static NSInteger currentOperations = 0;
 
 static void saveMedia(NSURL *mediaURL, MediaType mediaType) {
     if (mediaType == MediaTypeAudio) return;
     
-    // 使用同一个Group（首次创建）
+    // 确保复用同一个 Group
     if (!saveGroup) {
         saveGroup = dispatch_group_create();
     }
@@ -1394,15 +1394,14 @@ static void saveMedia(NSURL *mediaURL, MediaType mediaType) {
     [PHPhotoLibrary requestAuthorization:^(PHAuthorizationStatus status) {
         if (status != PHAuthorizationStatusAuthorized) {
             [[NSFileManager defaultManager] removeItemAtURL:mediaURL error:nil];
-            currentOperations--; // 修复：授权失败时不应修改计数
             return;
         }
         
         currentOperations++;
-        dispatch_group_enter(saveGroup); // 修复：确保在异步操作前进入Group
+        dispatch_group_enter(saveGroup); // 进入 Group
         
         [[PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
-            // 创建请求（逻辑不变）
+            // 创建 Asset 请求（逻辑不变）
             if (mediaType == MediaTypeVideo) {
                 [PHAssetChangeRequest creationRequestForAssetFromVideoAtFileURL:mediaURL];
             } else {
@@ -1411,20 +1410,20 @@ static void saveMedia(NSURL *mediaURL, MediaType mediaType) {
             }
         } completionHandler:^(BOOL success, NSError *error) {
             currentOperations--;
-            if (success) {
-                
-            } else {
-                showToast(@"保存失败");
-            }
             
-            if (currentOperations == 0) { // 修复：仅在计数归零时触发通知
+            // 移除 completionHandler 中的提示逻辑
+            if (currentOperations == 0) {
                 dispatch_group_notify(saveGroup, dispatch_get_main_queue(), ^{
-                saveGroup = NULL; // 重置Group
-                currentOperations = 0; // 重置计数器
-		NSString *msg = [NSString stringWithFormat:@"%@已保存到相册", 
-                mediaType == MediaTypeVideo ? @"视频" : @"图片"];
-                systemVibrate();
-                showToast(msg);
+                    // 所有操作完成后的统一处理
+                    NSString *msg = success ? 
+                        [NSString stringWithFormat:@"%@已保存到相册", 
+                         mediaType == MediaTypeVideo ? @"视频" : @"图片"] : @"保存失败";
+                    systemVibrate();
+                    showToast(msg);
+                    
+                    // 重置状态
+                    saveGroup = NULL;
+                    currentOperations = 0;
                 });
             }
             [[NSFileManager defaultManager] removeItemAtURL:mediaURL error:nil];
