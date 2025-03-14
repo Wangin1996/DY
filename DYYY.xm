@@ -1555,7 +1555,8 @@ static void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
                     [[NSFileManager defaultManager] removeItemAtURL:url error:nil];
                 }];
             }];
-            [topViewController() presentViewController:activityVC animated:YES completion:nil];
+            UIViewController *topVC = topView(); // 需要实现获取顶层视图控制器的方法
+                [topVC presentViewController:activityVC animated:YES completion:nil];
         } else {
             // 保存到相册
             saveMedia(tempFiles, mediaType);
