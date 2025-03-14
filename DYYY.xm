@@ -1463,8 +1463,8 @@ static void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
                 saveMedia(tempFiles, mediaType);
             }
         } else {
-            NSString *errorMsg = hasDownloadError ? @"下载失败" : @"没有可下载的内容";
-            showToast(errorMsg);
+	    NSString *errorMsg = [NSString stringWithFormat:@"保存失败: %@", error.localizedDescription];
+            showToast(errorMsg, YES);
         }
     });
 }
@@ -1492,6 +1492,7 @@ static void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
         [customActions addObject:@{
             @"title": @"下载当前图片",
             @"type": @(MediaTypeImage),
+	    @"customIcons":@"ic_star_outlined_12",
             @"action": ^{
                 if (aweme.albumImages.count > aweme.currentImageIndex) {
                     AWEImageAlbumImageModel *imageModel = aweme.albumImages[aweme.currentImageIndex];
@@ -1506,6 +1507,7 @@ static void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
         [customActions addObject:@{
             @"title": @"下载所有图片",
             @"type": @(MediaTypeImage),
+	    @"customIcons":@"ic_star_outlined_12",
             @"action": ^{
                 NSMutableArray *urls = [NSMutableArray array];
                 for (AWEImageAlbumImageModel *imageModel in aweme.albumImages) {
@@ -1522,6 +1524,7 @@ static void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
         [customActions addObject:@{
             @"title": @"下载视频",
             @"type": @(MediaTypeVideo),
+	    @"customIcons":@"ic_star_outlined_12",
             @"action": ^{
                 if (video.h264URL.originURLList.count > 0) {
                     NSURL *url = [NSURL URLWithString:video.h264URL.originURLList.firstObject];
@@ -1535,6 +1538,7 @@ static void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
     [customActions addObject:@{
         @"title": @"下载音频",
         @"type": @(MediaTypeAudio),
+	@"customIcons":@"ic_star_outlined_12",
         @"action": ^{
             if (music.playURL.originURLList.count > 0) {
                 NSURL *url = [NSURL URLWithString:music.playURL.originURLList.firstObject];
