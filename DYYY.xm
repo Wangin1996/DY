@@ -1359,8 +1359,8 @@ void showToast(NSString *text) {
 static NSInteger currentSavingCount = 0;   // 当前正在保存的数量
 static NSInteger totalSavedSuccess = 0;    // 所有保存成功的总数
 static dispatch_once_t groupToken;      // 确保通知只注册一次
-
-@implementation YourClassName // 替换为你的类名
+static dispatch_group_t saveGroup = NULL; // 👈 声明为静态变量，确保全局可见
+//@implementation YourClassName 
 
 static void saveMedia(NSURL *mediaURL, MediaType mediaType) {
     if (mediaType == MediaTypeAudio) return;
