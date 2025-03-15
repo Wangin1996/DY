@@ -1392,25 +1392,38 @@ static void showToast(NSString *message, BOOL isError);
         
         // 当前图片处理
         if (currentImage) {
-            if (aweme.albumImages.firstObject.clipVideo) { // 实况照片
-                [customActions addObject:@{
-                    @"title": @"下载实况照片",
-                    @"type": @(MediaTypeLivePhoto),
-                    @"icon": @"livephoto",
-                    @"action": ^{
-                        NSMutableArray *urls = [NSMutableArray array];
-                        if (aweme.albumImages.firstObject.urlList.count > 0) {
-                            [urls addObject:[NSURL URLWithString:aweme.albumImages.firstObject.urlList.firstObject]];
-                        }
-                        if (aweme.albumImages.firstObject.clipVideo.h264URL.originURLList.count > 0) {
-                            NSString *videoURL = aweme.albumImages.firstObject.clipVideo.h264URL.originURLList.firstObject;
-                            [urls addObject:[NSURL URLWithString:videoURL]];
-                        }
-                        if (urls.count == 2) {
-                            downloadMedia(urls, MediaTypeLivePhoto);
-                        }
-                    }
-                }];
+    // 判断当前图片是否是实况照片（通过检查 clipVideo 属性）
+    if (currentImage.clipVideo) { 
+        [customActions addObject:@{
+            @"title": @"下载当前实况照片", // 修改标题更明确
+            @"type": @(MediaTypeLivePhoto),
+            @"customIcons": @"ic_star_outlined_12",
+            @"action": ^{
+                NSMutableArray *urls = [NSMutableArray array];
+                
+                // 1. 添加当前图片的 URL
+                if (currentImage.urlList.count > 0) {
+                    [urls addObject:[NSURL URLWithString:currentImage.urlList.firstObject]];
+                } else {
+                    NSLog(@"错误：当前图片 URL 不存在");
+                }
+                
+                // 2. 添加当前视频的 URL
+                if (currentImage.clipVideo.h264URL.originURLList.count > 0) {
+                    NSString *videoURL = currentImage.clipVideo.h264URL.originURLList.firstObject;
+                    [urls addObject:[NSURL URLWithString:videoURL]];
+                } else {
+                    NSLog(@"错误：当前视频 URL 不存在");
+                }
+                
+                // 3. 验证并下载
+                if (urls.count == 2) {
+                    downloadMedia(urls, MediaTypeLivePhoto);
+                } else {
+                    showToast(@"实况照片资源不完整", YES);
+                }
+            }
+        }];
             } else { // 普通图片
                 [customActions addObject:@{
                     @"title": @"下载当前图片",
