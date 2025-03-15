@@ -1568,7 +1568,7 @@ static NSString* mimeTypeToExtension(NSString *mimeType, MediaType mediaType) {
         if (!extension) {
             switch (mediaType) {
                 case MediaTypeVideo: return @"mp4";
-                case MediaTypeImage: return @"heic";
+                case MediaTypeImage: return @"jpg";
                 case MediaTypeAudio: return @"mp3";
                 case MediaTypeLivePhoto: return @"mov";
                 default: return @"tmp";
@@ -1605,7 +1605,7 @@ static NSURL* _processLivePhotoVideo(NSURL *videoURL, NSString *identifier) {
     [exportSession exportAsynchronouslyWithCompletionHandler:^{
         if (exportSession.status != AVAssetExportSessionStatusCompleted) {
             exportError = exportSession.error;
-            NSLog(@"视频元数据注入失败: %@", exportError);
+	    showToast(@"视频元数据注入失败: %@", exportError", YES);
         }
         dispatch_semaphore_signal(sema);
     }];
@@ -1681,16 +1681,30 @@ static UIViewController* topViewController() {
     return rootVC;
 }
 
-static void showToast(NSString *message, BOOL isError) {
+@interface DUXToast : UIView
++ (void)showText:(id)arg1 withCenterPoint:(CGPoint)arg2;
++ (void)showText:(id)arg1;
+@end
+
+
+CGPoint topCenter = CGPointMake(
+    CGRectGetMidX([UIScreen mainScreen].bounds),
+    CGRectGetMinY([UIScreen mainScreen].bounds) + 90
+);
+
+
+void showToast(NSString *text, BOOL isError) {
+    // 触觉反馈（支持iOS 10+）
+    if (@available(iOS 10.0, *)) {
+        UIImpactFeedbackStyle style = isError ? UIImpactFeedbackStyleHeavy : UIImpactFeedbackStyleMedium;
+        UIImpactFeedbackGenerator *generator = [[UIImpactFeedbackGenerator alloc] initWithStyle:style];
+        [generator prepare];
+        [generator impactOccurred];
+    }
+    
+    // 显示Toast（主线程安全）
     dispatch_async(dispatch_get_main_queue(), ^{
-        UIAlertController *alert = [UIAlertController alertControllerWithTitle:nil
-                                                                       message:message
-                                                                preferredStyle:UIAlertControllerStyleAlert];
-        [topViewController() presentViewController:alert animated:YES completion:^{
-            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                [alert dismissViewControllerAnimated:YES completion:nil];
-            });
-        }];
+        [%c(DUXToast) showText:text withCenterPoint:topCenter];
     });
 }
 
