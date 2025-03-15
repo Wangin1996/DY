@@ -1340,32 +1340,7 @@ typedef NS_ENUM(NSUInteger, MediaType) {
 %end
 
 
-@interface DUXToast : UIView
-+ (void)showText:(id)arg1 withCenterPoint:(CGPoint)arg2;
-+ (void)showText:(id)arg1;
-@end
 
-
-CGPoint topCenter = CGPointMake(
-    CGRectGetMidX([UIScreen mainScreen].bounds),
-    CGRectGetMinY([UIScreen mainScreen].bounds) + 90
-);
-
-
-void showToast(NSString *text, BOOL isError) {
-    // 触觉反馈（支持iOS 10+）
-    if (@available(iOS 10.0, *)) {
-        UIImpactFeedbackStyle style = isError ? UIImpactFeedbackStyleHeavy : UIImpactFeedbackStyleMedium;
-        UIImpactFeedbackGenerator *generator = [[UIImpactFeedbackGenerator alloc] initWithStyle:style];
-        [generator prepare];
-        [generator impactOccurred];
-    }
-    
-    // 显示Toast（主线程安全）
-    dispatch_async(dispatch_get_main_queue(), ^{
-        [%c(DUXToast) showText:text withCenterPoint:topCenter];
-    });
-}
 
 
 
@@ -1373,13 +1348,12 @@ void showToast(NSString *text, BOOL isError) {
 #import <AVFoundation/AVFoundation.h>
 #import <Photos/Photos.h>
 
-// MARK: - 类型定义
-typedef NS_ENUM(NSUInteger, MediaType) {
-    MediaTypeImage,
-    MediaTypeVideo,
-    MediaTypeAudio,
-    MediaTypeLivePhoto
-};
+
+
+
+
+
+
 
 // MARK: - 前置声明
 static void saveMedia(NSArray<NSURL *> *mediaURLs, MediaType mediaType);
@@ -1388,6 +1362,9 @@ static NSString* mimeTypeToExtension(NSString *mimeType, MediaType mediaType);
 static UIViewController* topViewController();
 static NSURL* _processLivePhotoVideo(NSURL *videoURL, NSString *identifier);
 static void showToast(NSString *message, BOOL isError);
+
+
+
 
 // MARK: - Hook实现
 %hook AWELongPressPanelTableViewController
@@ -1608,12 +1585,12 @@ static NSURL* _processLivePhotoVideo(NSURL *videoURL, NSString *identifier) {
     AVMutableMetadataItem *contentID = [[AVMutableMetadataItem alloc] init];
     contentID.identifier = AVMetadataIdentifierQuickTimeMetadataContentIdentifier;
     contentID.value = identifier;
-    contentID.dataType = (__bridge NSString *)kCMMetadataDataType_UTF8;
+    contentID.dataType = (__bridge NSString *)kCMMetadataBaseDataType_UTF8;
     
     AVMutableMetadataItem *stillTime = [[AVMutableMetadataItem alloc] init];
-    stillTime.identifier = AVMetadataIdentifierQuickTimeMetadataStillImageTime;
+    stillTime.identifier = AVMetadataIdentifierQuickTimeMetadataDisplayName;
     stillTime.value = @(0);
-    stillTime.dataType = (__bridge NSString *)kCMMetadataDataType_SInt8;
+    stillTime.dataType = (__bridge NSString *)kCMMetadataBaseDataType_SInt8;
     
     AVAssetExportSession *exportSession = [AVAssetExportSession exportSessionWithAsset:asset presetName:AVAssetExportPresetPassthrough];
     NSURL *outputURL = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.mov", [[NSUUID UUID] UUIDString]]]];
