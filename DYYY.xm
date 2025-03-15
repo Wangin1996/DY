@@ -1339,6 +1339,8 @@ static UIViewController *topView(void) {
 #import <Photos/Photos.h>
 #import <ImageIO/ImageIO.h>
 #import <MobileCoreServices/MobileCoreServices.h>
+#import <Photos/PHAssetResource.h>
+
 
 // MARK: - 类型定义
 typedef NS_ENUM(NSUInteger, MediaType) {
@@ -1569,22 +1571,31 @@ static void saveMedia(NSArray<NSURL *> *files, MediaType mediaType) {
         
         [[PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
             if (mediaType == MediaTypeLivePhoto && files.count == 2) {
-                // iOS 11+ 专用API
-                PHAssetCreationRequest *request = [PHAssetCreationRequest creationRequestForLivePhoto];
-                
-                // HEIC文件处理
-                PHAssetResourceCreationOptions *photoOptions = [PHAssetResourceCreationOptions new];
-                photoOptions.uniformTypeIdentifier = (__bridge NSString *)kUTTypeHEIC;
-                [request addResourceWithType:PHAssetResourceTypePhoto
-                                    fileURL:files[0]
-                                   options:photoOptions];
-                
-                // MOV文件处理
-                PHAssetResourceCreationOptions *videoOptions = [PHAssetResourceCreationOptions new];
-                videoOptions.uniformTypeIdentifier = (__bridge NSString *)kUTTypeQuickTimeMovie;
-                [request addResourceWithType:PHAssetResourceTypePairedVideo
-                                    fileURL:files[1]
-                                   options:videoOptions];
+                if (@available(iOS 11.0, *)) {
+                    PHAssetCreationRequest *request = [PHAssetCreationRequest creationRequestForAsset];
+                    
+                    // 添加图片资源
+                    PHAssetResourceCreationOptions *photoOptions = [PHAssetResourceCreationOptions new];
+                    if (@available(iOS 14.0, *)) {
+                        photoOptions.uniformTypeIdentifier = UTTypeHEIC.identifier;
+                    } else {
+                        photoOptions.uniformTypeIdentifier = (__bridge NSString *)kUTTypeHEIC;
+                    }
+                    [request addResourceWithType:PHAssetResourceTypePhoto
+                                        fileURL:files[0]
+                                       options:photoOptions];
+                    
+                    // 添加视频资源
+                    PHAssetResourceCreationOptions *videoOptions = [PHAssetResourceCreationOptions new];
+                    videoOptions.uniformTypeIdentifier = (__bridge NSString *)kUTTypeQuickTimeMovie;
+                    [request addResourceWithType:PHAssetResourceTypePairedVideo
+                                        fileURL:files[1]
+                                       options:videoOptions];
+                } else {
+                    @throw [NSException exceptionWithName:@"UnsupportedOS"
+                                                   reason:@"Live Photo requires iOS 11+"
+                                                 userInfo:nil];
+                }
             } else {
                 for (NSURL *url in files) {
                     if (mediaType == MediaTypeVideo) {
@@ -1595,7 +1606,6 @@ static void saveMedia(NSArray<NSURL *> *files, MediaType mediaType) {
                 }
             }
         } completionHandler:^(BOOL success, NSError *error) {
-            // 清理临时文件...
             [files enumerateObjectsUsingBlock:^(NSURL *url, NSUInteger idx, BOOL *stop) {
                 [[NSFileManager defaultManager] removeItemAtURL:url error:nil];
             }];
