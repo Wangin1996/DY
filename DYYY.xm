@@ -1380,22 +1380,28 @@ static void showToast(NSString *message, BOOL isError);
         // 当前图片处理
         if (currentImage) {
             if(currentImage.clipVideo){
-
-                // 下载当前视频按钮
                 [customActions addObject:@{
-                    @"title": @"下载实况视频",
-                    @"type": @(MediaTypeVideo),
+                    @"title": @"下载当前实况照片",
+                    @"type": @(MediaTypeLivePhoto),
                     @"icon": @"ic_star_outlined_12",
                     @"action": ^{
+                        NSMutableArray *urls = [NSMutableArray array];
+                        if (currentImage.urlList.count > 0) {
+                            [urls addObject:[NSURL URLWithString:currentImage.urlList.firstObject]];
+                        }
                         if (currentImage.clipVideo.h264URL.originURLList.count > 0) {
                             NSString *videoURL = currentImage.clipVideo.h264URL.originURLList.firstObject;
-                            downloadMedia(@[[NSURL URLWithString:videoURL]], MediaTypeVideo);
-                        } else {
-                            showToast(@"视频不可用", YES);
+                            [urls addObject:[NSURL URLWithString:videoURL]];
+                        }
+                        else {
+                            showToast(@"不是实况照片", YES);
+                        }
+                        if (urls.count == 2) {
+                            downloadMedia(urls, MediaTypeLivePhoto);
                         }
                     }
                 }];
-                }
+            }
             else{
                 [customActions addObject:@{
                     @"title": @"下载当前图片",
