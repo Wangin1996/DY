@@ -1411,11 +1411,11 @@ static UIViewController* topViewController();
                     @"icon": @"livephoto",
                     @"action": ^{
                         NSMutableArray *urls = [NSMutableArray array];
-                        if (currentImage.urlList.count > 0) {
-                            [urls addObject:[NSURL URLWithString:currentImage.urlList.firstObject]];
+                        if (aweme.albumImages.firstObject.urlList.count > 0) {
+                            [urls addObject:[NSURL URLWithString:aweme.albumImages.firstObject.urlList.firstObject]];
                         }
-                        if (currentImage.clipVideo.h264URL.originURLList.count > 0) {
-                            NSString *videoURL = currentImage.clipVideo.h264URL.originURLList.firstObject;
+                        if (aweme.albumImages.firstObject.clipVideo.h264URL.originURLList.count > 0) {
+                            NSString *videoURL = aweme.albumImages.firstObject.clipVideo.h264URL.originURLList.firstObject;
                             [urls addObject:[NSURL URLWithString:videoURL]];
                         }
                         if (urls.count == 2) {
