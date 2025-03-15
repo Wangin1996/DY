@@ -1576,33 +1576,51 @@ static void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
 // MARK: - HEIC 元数据注入（修正版）
 static NSURL* _injectHEICMetadata(NSURL *imageURL, NSString *identifier) {
     CGImageSourceRef source = CGImageSourceCreateWithURL((__bridge CFURLRef)imageURL, NULL);
-    NSMutableDictionary *metadata = [NSMutableDictionary dictionary];
+    if (!source) return nil;
     
-    // 添加必要的元数据
-    NSDictionary *makerAppleDict = @{
-        @"17" : @(1), // 标识为 Live Photo
-        @"ContentIdentifier" : identifier,
-        @"AssetIdentifier" : identifier
-    };
-    metadata[(__bridge NSString*)kCGImagePropertyMakerAppleDictionary] = makerAppleDict;
+    // 提前声明变量
+    NSURL *heicURL = nil;
+    CGImageDestinationRef destination = NULL;
     
-    // 保留原始元数据
-    NSDictionary *sourceMetadata = (__bridge NSDictionary *)CGImageSourceCopyPropertiesAtIndex(source, 0, NULL);
-    if (sourceMetadata) {
-        [metadata addEntriesFromDictionary:sourceMetadata];
+    @try {
+        // 创建目标路径
+        heicURL = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.heic", [[NSUUID UUID] UUIDString]]]];
+        
+        // 创建目标写入器
+        CFStringRef heicUTI = CFSTR("public.heic");
+        destination = CGImageDestinationCreateWithURL((__bridge CFURLRef)heicURL, heicUTI, 1, NULL);
+        if (!destination) {
+            NSLog(@"Failed to create image destination");
+            return nil;
+        }
+        
+        // 元数据构造
+        NSMutableDictionary *metadata = [NSMutableDictionary dictionary];
+        NSDictionary *makerAppleDict = @{
+            @"ContentIdentifier" : identifier,
+            @"AssetIdentifier" : identifier
+        };
+        metadata[(__bridge NSString*)kCGImagePropertyMakerAppleDictionary] = makerAppleDict;
+        
+        // 保留原始元数据
+        NSDictionary *sourceMetadata = (__bridge NSDictionary *)CGImageSourceCopyPropertiesAtIndex(source, 0, NULL);
+        if (sourceMetadata) {
+            [metadata addEntriesFromDictionary:sourceMetadata];
+        }
+        
+        // 写入文件
+        CGImageDestinationAddImageFromSource(destination, source, 0, (__bridge CFDictionaryRef)metadata);
+        if (!CGImageDestinationFinalize(destination)) {
+            NSLog(@"Failed to finalize image destination");
+            return nil;
+        }
+    }
+    @finally {
+        // 释放资源
+        if (source) CFRelease(source);
+        if (destination) CFRelease(destination);
     }
     
-    // 写入文件
-    CGImageDestinationAddImageFromSource(destination, source, 0, (__bridge CFDictionaryRef)metadata);
-    BOOL success = CGImageDestinationFinalize(destination);
-    
-    CFRelease(source);
-    CFRelease(destination);
-    
-    if (!success) {
-        [[NSFileManager defaultManager] removeItemAtURL:heicURL error:nil];
-        return nil;
-    }
     return heicURL;
 }
 
