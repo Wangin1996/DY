@@ -1406,6 +1406,7 @@ static void showToast(NSString *message, BOOL isError);
                     [urls addObject:[NSURL URLWithString:currentImage.urlList.firstObject]];
                 } else {
                     NSLog(@"错误：当前图片 URL 不存在");
+		    showToast(@"错误：当前图片 URL 不存在", YES)
                 }
                 
                 // 2. 添加当前视频的 URL
@@ -1413,7 +1414,8 @@ static void showToast(NSString *message, BOOL isError);
                     NSString *videoURL = currentImage.clipVideo.h264URL.originURLList.firstObject;
                     [urls addObject:[NSURL URLWithString:videoURL]];
                 } else {
-                    NSLog(@"错误：当前视频 URL 不存在");
+                    //NSLog(@"错误：当前视频 URL 不存在");
+		    showToast(@"错误：当前视频 URL 不存在", YES)
                 }
                 
                 // 3. 验证并下载
