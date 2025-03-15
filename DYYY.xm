@@ -1576,23 +1576,11 @@ static void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
 // MARK: - HEIC 元数据注入（修正版）
 static NSURL* _injectHEICMetadata(NSURL *imageURL, NSString *identifier) {
     CGImageSourceRef source = CGImageSourceCreateWithURL((__bridge CFURLRef)imageURL, NULL);
-    if (!source) return nil;
-
-    // 创建目标路径
-    NSURL *heicURL = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.heic", [[NSUUID UUID] UUIDString]]]];
-    
-    // 配置目标格式
-    CFStringRef heicUTI = CFSTR("public.heic");
-    CGImageDestinationRef destination = CGImageDestinationCreateWithURL((__bridge CFURLRef)heicURL, heicUTI, 1, NULL);
-    
-    if (!destination) {
-        CFRelease(source);
-        return nil;
-    }
-    
-    // 构造元数据
     NSMutableDictionary *metadata = [NSMutableDictionary dictionary];
+    
+    // 添加必要的元数据
     NSDictionary *makerAppleDict = @{
+        @"17" : @(1), // 标识为 Live Photo
         @"ContentIdentifier" : identifier,
         @"AssetIdentifier" : identifier
     };
@@ -1622,38 +1610,57 @@ static NSURL* _injectHEICMetadata(NSURL *imageURL, NSString *identifier) {
 static NSURL* _processLivePhotoVideo(NSURL *videoURL, NSString *identifier) {
     AVAsset *asset = [AVAsset assetWithURL:videoURL];
     
-    // 创建元数据项
+    // 关键点1：修正元数据数据类型
     AVMutableMetadataItem *contentID = [[AVMutableMetadataItem alloc] init];
     contentID.keySpace = AVMetadataKeySpaceQuickTimeMetadata;
     contentID.key = @"com.apple.quicktime.content.identifier";
     contentID.value = identifier;
-    contentID.dataType = (__bridge NSString *)kCMMetadataBaseDataType_UTF8;
+    contentID.dataType = (__bridge NSString *)kCMMetadataBaseDataType_UTF8; // 保持UTF8编码
     
     AVMutableMetadataItem *stillTime = [[AVMutableMetadataItem alloc] init];
     stillTime.keySpace = AVMetadataKeySpaceQuickTimeMetadata;
     stillTime.key = @"com.apple.quicktime.still-image-time";
     stillTime.value = @(0);
-    stillTime.dataType = (__bridge NSString *)kCMMetadataBaseDataType_SInt8;
+    stillTime.dataType = (__bridge NSString *)kCMMetadataBaseDataType_SInt32; // 改为32位整型[4](@ref)
+
+    // 关键点2：验证导出预设兼容性
+    NSArray *compatiblePresets = [AVAssetExportSession exportPresetsCompatibleWithAsset:asset];
+    if (![compatiblePresets containsObject:AVAssetExportPresetPassthrough]) {
+        NSLog(@"不支持的导出预设");
+        return nil;
+    }
+
+    // 关键点3：配置导出参数
+    AVAssetExportSession *exportSession = [AVAssetExportSession exportSessionWithAsset:asset 
+                                                                             presetName:AVAssetExportPresetPassthrough];
+    NSURL *outputURL = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:
+                                              [NSString stringWithFormat:@"%@.mov", [[NSUUID UUID] UUIDString]]]];
     
-    // 导出配置
-    AVAssetExportSession *exportSession = [AVAssetExportSession exportSessionWithAsset:asset presetName:AVAssetExportPresetPassthrough];
-    NSURL *outputURL = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.mov", [[NSUUID UUID] UUIDString]]]];
+    // 关键点4：设置输出参数
     exportSession.outputURL = outputURL;
     exportSession.outputFileType = AVFileTypeQuickTimeMovie;
     exportSession.metadata = @[contentID, stillTime];
-    
-    // 同步导出
+    exportSession.directoryForTemporaryFiles = [NSURL fileURLWithPath:NSTemporaryDirectory()]; // 显式设置临时目录[1](@ref)
+
+    // 关键点5：增强错误处理
     dispatch_semaphore_t sema = dispatch_semaphore_create(0);
     __block NSError *exportError = nil;
     [exportSession exportAsynchronouslyWithCompletionHandler:^{
-        if (exportSession.status != AVAssetExportSessionStatusCompleted) {
-            exportError = exportSession.error;
+        switch (exportSession.status) {
+            case AVAssetExportSessionStatusFailed:
+                exportError = exportSession.error;
+                NSLog(@"导出失败: %@", exportError.localizedDescription);
+                break;
+            case AVAssetExportSessionStatusCancelled:
+                NSLog(@"导出取消");
+                break;
+            default: break;
         }
         dispatch_semaphore_signal(sema);
     }];
     dispatch_semaphore_wait(sema, DISPATCH_TIME_FOREVER);
     
-    return exportError ? nil : outputURL;
+    return (exportError || ![[NSFileManager defaultManager] fileExistsAtPath:outputURL.path]) ? nil : outputURL;
 }
 
 // MARK: - 相册保存（优化版）
