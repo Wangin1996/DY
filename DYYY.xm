@@ -1596,28 +1596,17 @@ static NSURL* _injectHEICMetadata(NSURL *imageURL, NSString *identifier) {
     CGImageSourceRef source = CGImageSourceCreateWithURL((__bridge CFURLRef)imageURL, NULL);
     if (!source) return nil;
 
-    CFStringRef heicUTI = CFSTR("public.heic"); 
-
+    // 创建 HEIC 文件
     NSURL *heicURL = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.heic", [[NSUUID UUID] UUIDString]]]];
+    CFStringRef heicUTI = CFSTR("public.heic");
     CGImageDestinationRef destination = CGImageDestinationCreateWithURL((__bridge CFURLRef)heicURL, heicUTI, 1, NULL);
-    if (!destination) {
-        CFRelease(source);
-        return nil;
-    }
     
-    // 获取原始元数据
-    NSDictionary *originalMetadata = (__bridge NSDictionary*)CGImageSourceCopyPropertiesAtIndex(source, 0, NULL);
-    NSMutableDictionary *metadata = [originalMetadata mutableCopy];
+    // 注入元数据
+    NSMutableDictionary *metadata = [NSMutableDictionary dictionary];
+    metadata[(__bridge NSString*)kCGImagePropertyMakerAppleDictionary] = @{
+        @"17": @{ @"ContentIdentifier": identifier }
+    };
     
-    // 注入 MakerNotes
-    NSMutableDictionary *makerApple = [NSMutableDictionary dictionary];
-    if (metadata[(__bridge NSString*)kCGImagePropertyMakerAppleDictionary]) {
-        makerApple = [metadata[(__bridge NSString*)kCGImagePropertyMakerAppleDictionary] mutableCopy];
-    }
-    makerApple[@"17"] = @{ @"ContentIdentifier": identifier };
-    metadata[(__bridge NSString*)kCGImagePropertyMakerAppleDictionary] = makerApple;
-    
-    // 写入文件
     CGImageDestinationAddImageFromSource(destination, source, 0, (__bridge CFDictionaryRef)metadata);
     BOOL success = CGImageDestinationFinalize(destination);
     
@@ -1631,7 +1620,7 @@ static NSURL* _injectHEICMetadata(NSURL *imageURL, NSString *identifier) {
 static NSURL* _processLivePhotoVideo(NSURL *videoURL, NSString *identifier) {
     AVAsset *asset = [AVAsset assetWithURL:videoURL];
     
-    // 1. 创建元数据
+    // 创建元数据项
     AVMutableMetadataItem *contentID = [[AVMutableMetadataItem alloc] init];
     contentID.identifier = @"com.apple.quicktime.content.identifier";
     contentID.value = identifier;
@@ -1642,26 +1631,24 @@ static NSURL* _processLivePhotoVideo(NSURL *videoURL, NSString *identifier) {
     stillTime.value = @(0);
     stillTime.dataType = (__bridge NSString *)kCMMetadataBaseDataType_SInt8;
     
-    // 2. 导出视频
+    // 导出视频
     AVAssetExportSession *exportSession = [AVAssetExportSession exportSessionWithAsset:asset presetName:AVAssetExportPresetPassthrough];
     NSURL *outputURL = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.mov", [[NSUUID UUID] UUIDString]]]];
-    
     exportSession.outputURL = outputURL;
     exportSession.outputFileType = AVFileTypeQuickTimeMovie;
     exportSession.metadata = @[contentID, stillTime];
     
+    // 同步等待导出完成
     dispatch_semaphore_t sema = dispatch_semaphore_create(0);
     __block NSError *exportError = nil;
-    
     [exportSession exportAsynchronouslyWithCompletionHandler:^{
         if (exportSession.status != AVAssetExportSessionStatusCompleted) {
             exportError = exportSession.error;
-            NSLog(@"视频元数据注入失败: %@", exportError);
         }
         dispatch_semaphore_signal(sema);
     }];
-    
     dispatch_semaphore_wait(sema, DISPATCH_TIME_FOREVER);
+    
     return exportError ? nil : outputURL;
 }
 
