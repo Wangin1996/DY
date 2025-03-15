@@ -1395,9 +1395,9 @@ static void showToast(NSString *message, BOOL isError);
                             NSString *videoURL = currentImage.clipVideo.h264URL.originURLList.firstObject;
                             [urls addObject:[NSURL URLWithString:videoURL]];
                         }
-			else {
-			    showToast(@"不是实况照片", YES);
-			}
+                        else {
+                            showToast(@"不是实况照片", YES);
+                        }
                         if (urls.count == 2) {
                             downloadMedia(urls, MediaTypeLivePhoto);
                         }
@@ -1414,10 +1414,6 @@ static void showToast(NSString *message, BOOL isError);
                         }
                     }
                 }];
-
-        }
-
-        
         // 下载全部图片
         [customActions addObject:@{
             @"title": @"下载全部图片",
@@ -1433,6 +1429,7 @@ static void showToast(NSString *message, BOOL isError);
                 downloadMedia(urls, MediaTypeImage);
             }
         }];
+        }
     } 
     else { // 视频类型
         [customActions addObject:@{
