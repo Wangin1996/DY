@@ -1586,9 +1586,8 @@ static NSURL* _injectHEICMetadata(NSURL *imageURL, NSString *identifier) {
     NSURL *heicURL = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.heic", [[NSUUID UUID] UUIDString]]]];
     
     // 配置目标格式
-    CFStringRef heicUTI = UTTypeCreatePreferredIdentifierForTag(kUTTagClassMIMEType, (__bridge CFStringRef)@"image/heic", kUTTypeImage);
+    CFStringRef heicUTI = CFSTR("public.heic");
     CGImageDestinationRef destination = CGImageDestinationCreateWithURL((__bridge CFURLRef)heicURL, heicUTI, 1, NULL);
-    CFRelease(heicUTI);
     
     if (!destination) {
         CFRelease(source);
@@ -1675,7 +1674,7 @@ static void saveMedia(NSArray<NSURL *> *files, MediaType mediaType) {
                 
                 // 添加图片资源
                 PHAssetResourceCreationOptions *photoOptions = [PHAssetResourceCreationOptions new];
-                photoOptions.uniformTypeIdentifier = (__bridge NSString *)kUTTypeHEIC;
+                photoOptions.uniformTypeIdentifier = @"public.heic"; // 直接指定 HEIC 类型
                 [request addResourceWithType:PHAssetResourceTypePhoto fileURL:files[0] options:photoOptions];
                 
                 // 添加视频资源
