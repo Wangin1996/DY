@@ -69,15 +69,6 @@ static UIViewController *topView(void) {
     return rootVC;
 }
 
-// 媒体类型枚举
-typedef NS_ENUM(NSUInteger, MediaType) {
-    MediaTypeVideo,
-    MediaTypeImage,
-    MediaTypeAudio,
-    MediaTypeLivePhoto
-};
-
-
 //去除开屏广告
 %hook BDASplashControllerView
 
@@ -1349,6 +1340,13 @@ typedef NS_ENUM(NSUInteger, MediaType) {
 #import <ImageIO/ImageIO.h>
 #import <MobileCoreServices/MobileCoreServices.h>
 
+// MARK: - 类型定义
+typedef NS_ENUM(NSUInteger, MediaType) {
+    MediaTypeImage,
+    MediaTypeVideo,
+    MediaTypeAudio,
+    MediaTypeLivePhoto
+};
 
 // MARK: - 前置声明
 static void saveMedia(NSArray<NSURL *> *mediaURLs, MediaType mediaType);
@@ -1579,18 +1577,19 @@ static void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
     });
 }
 
-// MARK: - HEIC 元数据注入
-// MARK: - HEIC 元数据注入（完整修正）
+// MARK: - HEIC 元数据注入（修正版）
 static NSURL* _injectHEICMetadata(NSURL *imageURL, NSString *identifier) {
     CGImageSourceRef source = CGImageSourceCreateWithURL((__bridge CFURLRef)imageURL, NULL);
     if (!source) return nil;
 
-    // 创建 HEIC 文件路径
+    // 创建目标路径
     NSURL *heicURL = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.heic", [[NSUUID UUID] UUIDString]]]];
     
-    // 使用 UTI 字符串定义 HEIC 类型
-    CFStringRef heicUTI = CFSTR("public.heic");
+    // 配置目标格式
+    CFStringRef heicUTI = UTTypeCreatePreferredIdentifierForTag(kUTTagClassMIMEType, (__bridge CFStringRef)@"image/heic", kUTTypeImage);
     CGImageDestinationRef destination = CGImageDestinationCreateWithURL((__bridge CFURLRef)heicURL, heicUTI, 1, NULL);
+    CFRelease(heicUTI);
+    
     if (!destination) {
         CFRelease(source);
         return nil;
@@ -1599,7 +1598,8 @@ static NSURL* _injectHEICMetadata(NSURL *imageURL, NSString *identifier) {
     // 构造元数据
     NSMutableDictionary *metadata = [NSMutableDictionary dictionary];
     NSDictionary *makerAppleDict = @{
-        @"17" : @{ @"AssetIdentifier" : identifier }
+        @"ContentIdentifier" : identifier,
+        @"AssetIdentifier" : identifier
     };
     metadata[(__bridge NSString*)kCGImagePropertyMakerAppleDictionary] = makerAppleDict;
     
@@ -1623,19 +1623,20 @@ static NSURL* _injectHEICMetadata(NSURL *imageURL, NSString *identifier) {
     return heicURL;
 }
 
-
-// MARK: - LivePhoto 视频处理
+// MARK: - LivePhoto 视频处理（修正版）
 static NSURL* _processLivePhotoVideo(NSURL *videoURL, NSString *identifier) {
     AVAsset *asset = [AVAsset assetWithURL:videoURL];
     
-    // 创建元数据
+    // 创建元数据项
     AVMutableMetadataItem *contentID = [[AVMutableMetadataItem alloc] init];
-    contentID.identifier = @"com.apple.quicktime.content.identifier";
+    contentID.keySpace = AVMetadataKeySpaceQuickTimeMetadata;
+    contentID.key = @"com.apple.quicktime.content.identifier";
     contentID.value = identifier;
     contentID.dataType = (__bridge NSString *)kCMMetadataBaseDataType_UTF8;
     
     AVMutableMetadataItem *stillTime = [[AVMutableMetadataItem alloc] init];
-    stillTime.identifier = @"com.apple.quicktime.still-image-time";
+    stillTime.keySpace = AVMetadataKeySpaceQuickTimeMetadata;
+    stillTime.key = @"com.apple.quicktime.still-image-time";
     stillTime.value = @(0);
     stillTime.dataType = (__bridge NSString *)kCMMetadataBaseDataType_SInt8;
     
@@ -1660,7 +1661,7 @@ static NSURL* _processLivePhotoVideo(NSURL *videoURL, NSString *identifier) {
     return exportError ? nil : outputURL;
 }
 
-// MARK: - 相册保存
+// MARK: - 相册保存（优化版）
 static void saveMedia(NSArray<NSURL *> *files, MediaType mediaType) {
     [PHPhotoLibrary requestAuthorization:^(PHAuthorizationStatus status) {
         if (status != PHAuthorizationStatusAuthorized) {
@@ -1674,12 +1675,12 @@ static void saveMedia(NSArray<NSURL *> *files, MediaType mediaType) {
                 
                 // 添加图片资源
                 PHAssetResourceCreationOptions *photoOptions = [PHAssetResourceCreationOptions new];
-                photoOptions.shouldMoveFile = YES;
+                photoOptions.uniformTypeIdentifier = (__bridge NSString *)kUTTypeHEIC;
                 [request addResourceWithType:PHAssetResourceTypePhoto fileURL:files[0] options:photoOptions];
                 
                 // 添加视频资源
                 PHAssetResourceCreationOptions *videoOptions = [PHAssetResourceCreationOptions new];
-                videoOptions.shouldMoveFile = YES;
+                videoOptions.uniformTypeIdentifier = (__bridge NSString *)kUTTypeQuickTimeMovie;
                 [request addResourceWithType:PHAssetResourceTypePairedVideo fileURL:files[1] options:videoOptions];
             } else {
                 for (NSURL *url in files) {
@@ -1722,15 +1723,13 @@ static UIViewController* topViewController() {
 + (void)showText:(id)arg1;
 @end
 
-
 CGPoint topCenter = CGPointMake(
     CGRectGetMidX([UIScreen mainScreen].bounds),
     CGRectGetMinY([UIScreen mainScreen].bounds) + 90
 );
 
-
 void showToast(NSString *text, BOOL isError) {
-    // 触觉反馈（支持iOS 10+）
+    // 触觉反馈
     if (@available(iOS 10.0, *)) {
         UIImpactFeedbackStyle style = isError ? UIImpactFeedbackStyleHeavy : UIImpactFeedbackStyleMedium;
         UIImpactFeedbackGenerator *generator = [[UIImpactFeedbackGenerator alloc] initWithStyle:style];
@@ -1738,12 +1737,10 @@ void showToast(NSString *text, BOOL isError) {
         [generator impactOccurred];
     }
     
-    // 显示Toast（主线程安全）
     dispatch_async(dispatch_get_main_queue(), ^{
         [%c(DUXToast) showText:text withCenterPoint:topCenter];
     });
 }
-
 
 %ctor {
     %init(AWELongPressPanelTableViewController = objc_getClass("AWELongPressPanelTableViewController"));
