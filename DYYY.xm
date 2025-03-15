@@ -1473,7 +1473,6 @@ static void showToast(NSString *message, BOOL isError);
     
     newGroup.groupArr = viewModels;
     return [@[newGroup] arrayByAddingObjectsFromArray:originalArray ?: @[]];
-}
 
 %end
 
