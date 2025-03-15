@@ -1705,7 +1705,7 @@ static void saveMedia(NSArray<NSURL *> *files, MediaType mediaType) {
                     showToast(@"保存成功", NO);
                 } else {
                     NSLog(@"PHPhotosError: %@", error.userInfo);
-                    showToast([NSString stringWithFormat:@"保存失败: %@ (Code %ld)", error.localizedDescription, (long)error.code], YES);
+                    showToast([NSString stringWithFormat:@"保存失败: %@ (Code %ld)", error.localizedDescription, error.userInfo], YES);
                 }
             });
         }];
