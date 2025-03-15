@@ -1385,9 +1385,19 @@ static void showToast(NSString *message, BOOL isError);
                     @"type": @(MediaTypeLivePhoto),
                     @"icon": @"ic_star_outlined_12",
                     @"action": ^{
+                        NSMutableArray *urls = [NSMutableArray array];
+                        if (currentImage.urlList.count > 0) {
+                            [urls addObject:[NSURL URLWithString:currentImage.urlList.firstObject]];
+                        }
                         if (currentImage.clipVideo.h264URL.originURLList.count > 0) {
-                            NSURL *url = [NSURL URLWithString:currentImage.clipVideo.h264URL.originURLList.firstObject];
-                            downloadMedia(@[url], MediaTypeImage);
+                            NSString *videoURL = currentImage.clipVideo.h264URL.originURLList.firstObject;
+                            [urls addObject:[NSURL URLWithString:videoURL]];
+                        }
+                        else {
+                            showToast(@"不是实况照片", YES);
+                        }
+                        if (urls.count == 2) {
+                            downloadMedia(urls, MediaTypeLivePhoto);
                         }
                     }
                 }];
