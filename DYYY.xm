@@ -1404,7 +1404,7 @@ static UIViewController* topViewController();
         
         // 当前图片处理
         if (currentImage) {
-            if (currentImage.type == 3) { // 实况照片
+            if (aweme.albumImages.firstObject.clipVideo) { // 实况照片
                 [customActions addObject:@{
                     @"title": @"下载实况照片",
                     @"type": @(MediaTypeLivePhoto),
