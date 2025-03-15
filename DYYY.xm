@@ -1573,6 +1573,7 @@ static NSString* mimeTypeToExtension(NSString *mimeType, MediaType mediaType) {
                 case MediaTypeVideo: return @"mp4";
                 case MediaTypeImage: return @"jpg";
                 case MediaTypeAudio: return @"mp3";
+		case MediaTypeLivePhoto: return @"mov";
                 default: return @"tmp";
             }
         }
