@@ -1375,10 +1375,7 @@ static void showToast(NSString *message, BOOL isError);
     
     // 处理媒体类型
     if (aweme.awemeType == 68) { // 图集类型
-        AWEImageAlbumImageModel *currentImage = nil;
-        if (aweme.albumImages.count > aweme.currentImageIndex) {
-            currentImage = aweme.albumImages[aweme.currentImageIndex];
-        }
+        AWEImageAlbumImageModel *currentImage = aweme.albumImages.count == 1 ? aweme.albumImages.firstObject : aweme.albumImages[aweme.currentImageIndex - 1];
         
         // 当前图片处理
         if (currentImage) {
