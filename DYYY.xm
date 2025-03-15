@@ -1580,17 +1580,26 @@ static void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
 }
 
 // MARK: - HEIC 元数据注入
+// MARK: - HEIC 元数据注入（完整修正）
 static NSURL* _injectHEICMetadata(NSURL *imageURL, NSString *identifier) {
     CGImageSourceRef source = CGImageSourceCreateWithURL((__bridge CFURLRef)imageURL, NULL);
     if (!source) return nil;
 
+    // 创建 HEIC 文件路径
     NSURL *heicURL = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.heic", [[NSUUID UUID] UUIDString]]]];
-    CGImageDestinationRef destination = CGImageDestinationCreateWithURL((__bridge CFURLRef)heicURL, kUTTypeHEIC, 1, NULL);
+    
+    // 使用 UTI 字符串定义 HEIC 类型
+    CFStringRef heicUTI = CFSTR("public.heic");
+    CGImageDestinationRef destination = CGImageDestinationCreateWithURL((__bridge CFURLRef)heicURL, heicUTI, 1, NULL);
+    if (!destination) {
+        CFRelease(source);
+        return nil;
+    }
     
     // 构造元数据
     NSMutableDictionary *metadata = [NSMutableDictionary dictionary];
     NSDictionary *makerAppleDict = @{
-        @"17" : @{ @"AssetIdentifier" : identifier } // 关键元数据字段
+        @"17" : @{ @"AssetIdentifier" : identifier }
     };
     metadata[(__bridge NSString*)kCGImagePropertyMakerAppleDictionary] = makerAppleDict;
     
@@ -1600,11 +1609,12 @@ static NSURL* _injectHEICMetadata(NSURL *imageURL, NSString *identifier) {
         [metadata addEntriesFromDictionary:sourceMetadata];
     }
     
+    // 写入文件
     CGImageDestinationAddImageFromSource(destination, source, 0, (__bridge CFDictionaryRef)metadata);
     BOOL success = CGImageDestinationFinalize(destination);
     
     CFRelease(source);
-    if (destination) CFRelease(destination);
+    CFRelease(destination);
     
     if (!success) {
         [[NSFileManager defaultManager] removeItemAtURL:heicURL error:nil];
@@ -1612,6 +1622,7 @@ static NSURL* _injectHEICMetadata(NSURL *imageURL, NSString *identifier) {
     }
     return heicURL;
 }
+
 
 // MARK: - LivePhoto 视频处理
 static NSURL* _processLivePhotoVideo(NSURL *videoURL, NSString *identifier) {
@@ -1706,24 +1717,33 @@ static UIViewController* topViewController() {
 }
 
 // MARK: - Toast 实现
-%hook DUXToast
-+ (void)showText:(NSString *)text withCenterPoint:(CGPoint)point {
-    %orig;
-}
-%end
+@interface DUXToast : UIView
++ (void)showText:(id)arg1 withCenterPoint:(CGPoint)arg2;
++ (void)showText:(id)arg1;
+@end
 
-static void showToast(NSString *text, BOOL isError) {
+
+CGPoint topCenter = CGPointMake(
+    CGRectGetMidX([UIScreen mainScreen].bounds),
+    CGRectGetMinY([UIScreen mainScreen].bounds) + 90
+);
+
+
+void showToast(NSString *text, BOOL isError) {
+    // 触觉反馈（支持iOS 10+）
     if (@available(iOS 10.0, *)) {
-        UIImpactFeedbackGenerator *generator = [[UIImpactFeedbackGenerator alloc] initWithStyle:isError ? UIImpactFeedbackStyleHeavy : UIImpactFeedbackStyleMedium];
+        UIImpactFeedbackStyle style = isError ? UIImpactFeedbackStyleHeavy : UIImpactFeedbackStyleMedium;
+        UIImpactFeedbackGenerator *generator = [[UIImpactFeedbackGenerator alloc] initWithStyle:style];
         [generator prepare];
         [generator impactOccurred];
     }
     
+    // 显示Toast（主线程安全）
     dispatch_async(dispatch_get_main_queue(), ^{
-        CGPoint topCenter = CGPointMake(CGRectGetMidX([UIScreen mainScreen].bounds), 90);
         [%c(DUXToast) showText:text withCenterPoint:topCenter];
     });
 }
+
 
 %ctor {
     %init(AWELongPressPanelTableViewController = objc_getClass("AWELongPressPanelTableViewController"));
