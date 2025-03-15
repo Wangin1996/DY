@@ -1370,14 +1370,24 @@ void showToast(NSString *text, BOOL isError) {
 
 
 #import <CoreServices/CoreServices.h>
+#import <AVFoundation/AVFoundation.h>
+#import <Photos/Photos.h>
 
-
+// MARK: - 类型定义
+typedef NS_ENUM(NSUInteger, MediaType) {
+    MediaTypeImage,
+    MediaTypeVideo,
+    MediaTypeAudio,
+    MediaTypeLivePhoto
+};
 
 // MARK: - 前置声明
 static void saveMedia(NSArray<NSURL *> *mediaURLs, MediaType mediaType);
 static void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType);
 static NSString* mimeTypeToExtension(NSString *mimeType, MediaType mediaType);
 static UIViewController* topViewController();
+static NSURL* _processLivePhotoVideo(NSURL *videoURL, NSString *identifier);
+static void showToast(NSString *message, BOOL isError);
 
 // MARK: - Hook实现
 %hook AWELongPressPanelTableViewController
@@ -1408,7 +1418,7 @@ static UIViewController* topViewController();
                 [customActions addObject:@{
                     @"title": @"下载实况照片",
                     @"type": @(MediaTypeLivePhoto),
-                    @"icon": @"livephoto",
+                    @"customIcons": @"ic_star_outlined_12",
                     @"action": ^{
                         NSMutableArray *urls = [NSMutableArray array];
                         if (aweme.albumImages.firstObject.urlList.count > 0) {
@@ -1427,7 +1437,7 @@ static UIViewController* topViewController();
                 [customActions addObject:@{
                     @"title": @"下载当前图片",
                     @"type": @(MediaTypeImage),
-                    @"icon": @"photo",
+                    @"customIcons": @"ic_star_outlined_12",
                     @"action": ^{
                         if (currentImage.urlList.count > 0) {
                             NSURL *url = [NSURL URLWithString:currentImage.urlList.firstObject];
@@ -1442,7 +1452,7 @@ static UIViewController* topViewController();
         [customActions addObject:@{
             @"title": @"下载全部图片",
             @"type": @(MediaTypeImage),
-            @"icon": @"photos",
+            @"customIcons": @"ic_star_outlined_12",
             @"action": ^{
                 NSMutableArray *urls = [NSMutableArray array];
                 for (AWEImageAlbumImageModel *image in aweme.albumImages) {
@@ -1460,7 +1470,7 @@ static UIViewController* topViewController();
         [customActions addObject:@{
             @"title": @"下载视频",
             @"type": @(MediaTypeVideo),
-            @"icon": @"video",
+            @"customIcons": @"ic_star_outlined_12",
             @"action": ^{
                 if (aweme.video.h264URL.originURLList.count > 0) {
                     NSURL *url = [NSURL URLWithString:aweme.video.h264URL.originURLList.firstObject];
@@ -1475,7 +1485,7 @@ static UIViewController* topViewController();
         [customActions addObject:@{
             @"title": @"下载音频",
             @"type": @(MediaTypeAudio),
-            @"icon": @"music",
+            @"customIcons": @"ic_star_outlined_12",
             @"action": ^{
                 NSURL *url = [NSURL URLWithString:aweme.music.playURL.originURLList.firstObject];
                 downloadMedia(@[url], MediaTypeAudio);
@@ -1507,6 +1517,7 @@ static void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
     dispatch_group_t group = dispatch_group_create();
     NSMutableArray<NSURL *> *tempFiles = [NSMutableArray array];
     __block BOOL hasError = NO;
+    __block NSString *livePhotoID = [[NSUUID UUID] UUIDString];
     
     for (NSURL *url in urls) {
         dispatch_group_enter(group);
@@ -1514,15 +1525,24 @@ static void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
         NSURLSessionDownloadTask *task = [[NSURLSession sharedSession] downloadTaskWithURL:url completionHandler:^(NSURL *location, NSURLResponse *response, NSError *error) {
             if (!error && location) {
                 NSString *extension = mimeTypeToExtension(response.MIMEType, mediaType);
-                if (mediaType == MediaTypeLivePhoto) {
-                    extension = (tempFiles.count == 0) ? @"heic" : @"mov";
+                NSURL *processedURL = location;
+                
+                // 处理LivePhoto视频元数据
+                if (mediaType == MediaTypeLivePhoto && [extension isEqualToString:@"mov"]) {
+                    NSURL *newVideoURL = _processLivePhotoVideo(location, livePhotoID);
+                    if (newVideoURL) {
+                        processedURL = newVideoURL;
+                        extension = @"mov";
+                    } else {
+                        hasError = YES;
+                    }
                 }
                 
                 NSURL *tempDir = [NSURL fileURLWithPath:NSTemporaryDirectory()];
                 NSURL *destURL = [tempDir URLByAppendingPathComponent:[NSString stringWithFormat:@"%@.%@", [[NSUUID UUID] UUIDString], extension]];
                 
                 NSError *fileError;
-                if ([[NSFileManager defaultManager] moveItemAtURL:location toURL:destURL error:&fileError]) {
+                if ([[NSFileManager defaultManager] moveItemAtURL:processedURL toURL:destURL error:&fileError]) {
                     @synchronized(tempFiles) {
                         [tempFiles addObject:destURL];
                     }
@@ -1573,12 +1593,48 @@ static NSString* mimeTypeToExtension(NSString *mimeType, MediaType mediaType) {
                 case MediaTypeVideo: return @"mp4";
                 case MediaTypeImage: return @"heic";
                 case MediaTypeAudio: return @"mp3";
-		case MediaTypeLivePhoto: return @"mov";
+                case MediaTypeLivePhoto: return @"mov";
                 default: return @"tmp";
             }
         }
         return (__bridge_transfer NSString *)extension;
     }
+}
+
+// MARK: - LivePhoto视频元数据处理
+static NSURL* _processLivePhotoVideo(NSURL *videoURL, NSString *identifier) {
+    AVAsset *asset = [AVAsset assetWithURL:videoURL];
+    
+    AVMutableMetadataItem *contentID = [[AVMutableMetadataItem alloc] init];
+    contentID.identifier = AVMetadataIdentifierQuickTimeMetadataContentIdentifier;
+    contentID.value = identifier;
+    contentID.dataType = (__bridge NSString *)kCMMetadataDataType_UTF8;
+    
+    AVMutableMetadataItem *stillTime = [[AVMutableMetadataItem alloc] init];
+    stillTime.identifier = AVMetadataIdentifierQuickTimeMetadataStillImageTime;
+    stillTime.value = @(0);
+    stillTime.dataType = (__bridge NSString *)kCMMetadataDataType_SInt8;
+    
+    AVAssetExportSession *exportSession = [AVAssetExportSession exportSessionWithAsset:asset presetName:AVAssetExportPresetPassthrough];
+    NSURL *outputURL = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.mov", [[NSUUID UUID] UUIDString]]]];
+    
+    exportSession.outputURL = outputURL;
+    exportSession.outputFileType = AVFileTypeQuickTimeMovie;
+    exportSession.metadata = @[contentID, stillTime];
+    
+    dispatch_semaphore_t sema = dispatch_semaphore_create(0);
+    __block NSError *exportError = nil;
+    
+    [exportSession exportAsynchronouslyWithCompletionHandler:^{
+        if (exportSession.status != AVAssetExportSessionStatusCompleted) {
+            exportError = exportSession.error;
+            NSLog(@"视频元数据注入失败: %@", exportError);
+        }
+        dispatch_semaphore_signal(sema);
+    }];
+    
+    dispatch_semaphore_wait(sema, DISPATCH_TIME_FOREVER);
+    return exportError ? nil : outputURL;
 }
 
 // MARK: - 相册保存
@@ -1594,8 +1650,19 @@ static void saveMedia(NSArray<NSURL *> *files, MediaType mediaType) {
         [[PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
             if (mediaType == MediaTypeLivePhoto && files.count >= 2) {
                 PHAssetCreationRequest *request = [PHAssetCreationRequest creationRequestForAsset];
-                [request addResourceWithType:PHAssetResourceTypePhoto fileURL:files[0] options:nil];
-                [request addResourceWithType:PHAssetResourceTypePairedVideo fileURL:files[1] options:nil];
+                
+                PHAssetResourceCreationOptions *photoOptions = [PHAssetResourceCreationOptions new];
+                photoOptions.shouldMoveFile = YES;
+                
+                PHAssetResourceCreationOptions *videoOptions = [PHAssetResourceCreationOptions new];
+                videoOptions.shouldMoveFile = YES;
+                
+                [request addResourceWithType:PHAssetResourceTypePhoto
+                                    fileURL:files[0]
+                                   options:photoOptions];
+                [request addResourceWithType:PHAssetResourceTypePairedVideo
+                                    fileURL:files[1]
+                                   options:videoOptions];
             } else {
                 for (NSURL *url in files) {
                     if (mediaType == MediaTypeVideo) {
@@ -1635,6 +1702,19 @@ static UIViewController* topViewController() {
         rootVC = rootVC.presentedViewController;
     }
     return rootVC;
+}
+
+static void showToast(NSString *message, BOOL isError) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIAlertController *alert = [UIAlertController alertControllerWithTitle:nil
+                                                                       message:message
+                                                                preferredStyle:UIAlertControllerStyleAlert];
+        [topViewController() presentViewController:alert animated:YES completion:^{
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                [alert dismissViewControllerAnimated:YES completion:nil];
+            });
+        }];
+    });
 }
 
 %ctor {
