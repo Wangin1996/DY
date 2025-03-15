@@ -1413,7 +1413,7 @@ static void showToast(NSString *message, BOOL isError);
                 }];
 
         }
-}
+
         
         // 下载全部图片
         [customActions addObject:@{
@@ -1473,7 +1473,7 @@ static void showToast(NSString *message, BOOL isError);
     
     newGroup.groupArr = viewModels;
     return [@[newGroup] arrayByAddingObjectsFromArray:originalArray ?: @[]];
-
+}
 %end
 
 // MARK: - MIME 类型转文件扩展名
