@@ -1380,20 +1380,7 @@ static void showToast(NSString *message, BOOL isError);
         // 当前图片处理
         if (currentImage) {
             if(currentImage.clipVideo){
-                // 下载当前图片按钮
-                [customActions addObject:@{
-                    @"title": @"下载实况图片",
-                    @"type": @(MediaTypeImage),
-                    @"icon": @"ic_star_outlined_12",
-                    @"action": ^{
-                        if (currentImage.urlList.count > 0) {
-                            NSURL *imageURL = [NSURL URLWithString:currentImage.urlList.firstObject];
-                            downloadMedia(@[imageURL], MediaTypeImage);
-                        } else {
-                            showToast(@"没有可下载的图片", YES);
-                        }
-                    }
-                }];
+
                 // 下载当前视频按钮
                 [customActions addObject:@{
                     @"title": @"下载实况视频",
