@@ -1559,6 +1559,7 @@ static void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
 }
 
 // MARK: - 最终版相册保存
+// MARK: - 相册保存（iOS 15优化版）
 static void saveMedia(NSArray<NSURL *> *files, MediaType mediaType) {
     [PHPhotoLibrary requestAuthorization:^(PHAuthorizationStatus status) {
         if (status != PHAuthorizationStatusAuthorized) {
@@ -1568,23 +1569,24 @@ static void saveMedia(NSArray<NSURL *> *files, MediaType mediaType) {
         
         [[PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
             if (mediaType == MediaTypeLivePhoto && files.count == 2) {
-                // 使用Live Photo专用API
+                // iOS 11+ 专用API
                 PHAssetCreationRequest *request = [PHAssetCreationRequest creationRequestForLivePhoto];
                 
-                // 强制类型声明
+                // HEIC文件处理
                 PHAssetResourceCreationOptions *photoOptions = [PHAssetResourceCreationOptions new];
-                photoOptions.uniformTypeIdentifier = @"public.heic";
+                photoOptions.uniformTypeIdentifier = (__bridge NSString *)kUTTypeHEIC;
                 [request addResourceWithType:PHAssetResourceTypePhoto
                                     fileURL:files[0]
                                    options:photoOptions];
                 
+                // MOV文件处理
                 PHAssetResourceCreationOptions *videoOptions = [PHAssetResourceCreationOptions new];
-                videoOptions.uniformTypeIdentifier = @"com.apple.quicktime-movie";
+                videoOptions.uniformTypeIdentifier = (__bridge NSString *)kUTTypeQuickTimeMovie;
                 [request addResourceWithType:PHAssetResourceTypePairedVideo
                                     fileURL:files[1]
                                    options:videoOptions];
             } else {
-                    for (NSURL *url in files) {
+                for (NSURL *url in files) {
                     if (mediaType == MediaTypeVideo) {
                         [PHAssetChangeRequest creationRequestForAssetFromVideoAtFileURL:url];
                     } else {
@@ -1593,26 +1595,42 @@ static void saveMedia(NSArray<NSURL *> *files, MediaType mediaType) {
                 }
             }
         } completionHandler:^(BOOL success, NSError *error) {
-            // 清理临时文件
+            // 清理临时文件...
             [files enumerateObjectsUsingBlock:^(NSURL *url, NSUInteger idx, BOOL *stop) {
                 [[NSFileManager defaultManager] removeItemAtURL:url error:nil];
             }];
-            
             dispatch_async(dispatch_get_main_queue(), ^{
-                if (success) {
-                    showToast(@"保存成功", NO);
-                } else {
-                    NSString *errorInfo = [NSString stringWithFormat:
-                                         @"错误类型: %@\n代码: %ld\n文件: %@",
-                                         analyzePhotoError(error),
-                                         (long)error.code,
-                                         files];
-                    NSLog(@"PHOTOS_SAVE_ERROR: %@", errorInfo);
-                    showToast([NSString stringWithFormat:@"保存失败: %@", analyzePhotoError(error)], YES);
+                if (!success) {
+                    NSString *errorDetail = [NSString stringWithFormat:
+                                           @"PHOTOS ERROR %ld\n%@", 
+                                           (long)error.code, 
+                                           [error.userInfo description]];
+                    NSLog(@"%@", errorDetail);
+                    showToast([NSString stringWithFormat:@"保存失败: %@", error.localizedDescription], YES);
                 }
             });
         }];
     }];
+}
+
+// MARK: - 错误处理（iOS 15适配版）
+static NSString* analyzePhotoError(NSError *error) {
+    if (!error) return @"未知错误";
+    
+    if (@available(iOS 15.0, *)) {
+        switch (error.code) {
+            case PHPhotosErrorInvalid: 
+                return @"无效文件格式";
+            case PHPhotosErrorNotEnoughSpace:
+                return @"存储空间不足";
+            case PHPhotosErrorLibraryInFileProviderSyncRoot:
+                return @"文件保护限制";
+            default:
+                return error.localizedDescription;
+        }
+    } else {
+        return error.localizedDescription;
+    }
 }
 
 // MARK: - 新增关键函数
@@ -1635,22 +1653,6 @@ static BOOL validateLivePhotoPair(NSURL *imageURL, NSURL *videoURL) {
     return [imageID isEqualToString:(NSString*)videoIDItem.value];
 }
 
-static NSString* analyzePhotoError(NSError *error) {
-    if (!error) return @"未知错误";
-    
-    switch (error.code) {
-        case PHPhotosErrorInvalidResource:
-            return @"文件格式无效（需要HEIC+MOV）";
-        case PHPhotosErrorNotEnoughSpace:
-            return @"设备存储空间不足";
-        case PHPhotosErrorCloudPhotoLibraryEnabled:
-            return @"需要开启iCloud照片库";
-        case PHPhotosErrorLibraryInFileProvider:
-            return @"文件保护限制";
-        default:
-            return [NSString stringWithFormat:@"系统错误: %@", error.localizedDescription];
-    }
-}
 
 // MARK: - 辅助方法
 static UIViewController* topViewController() {
