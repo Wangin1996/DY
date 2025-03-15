@@ -1411,7 +1411,7 @@ static void showToast(NSString *message, BOOL isError);
                 
                 // 2. 添加当前视频的 URL
                 if (currentImage.clipVideo.h264URL.originURLList.count > 0) {
-                    NSString *videoURL = aweme.albumImages.firstObject..clipVideo.h264URL.originURLList.firstObject;
+                    NSString *videoURL = aweme.albumImages.firstObject.clipVideo.h264URL.originURLList.firstObject;
                     [urls addObject:[NSURL URLWithString:videoURL]];
                 } else {
                     //NSLog(@"错误：当前视频 URL 不存在");
