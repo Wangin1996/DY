@@ -1379,6 +1379,7 @@ static void showToast(NSString *message, BOOL isError);
         
         // 当前图片处理
         if (currentImage) {
+            if(currentImage.clipVideo)
                 [customActions addObject:@{
                     @"title": @"下载当前实况照片",
                     @"type": @(MediaTypeLivePhoto),
@@ -1400,6 +1401,7 @@ static void showToast(NSString *message, BOOL isError);
                         }
                     }
                 }];
+            else{
                 [customActions addObject:@{
                     @"title": @"下载当前图片",
                     @"type": @(MediaTypeImage),
@@ -1411,6 +1413,7 @@ static void showToast(NSString *message, BOOL isError);
                         }
                     }
                 }];
+            }
         // 下载全部图片
         [customActions addObject:@{
             @"title": @"下载全部图片",
@@ -1472,6 +1475,7 @@ static void showToast(NSString *message, BOOL isError);
     return [@[newGroup] arrayByAddingObjectsFromArray:originalArray ?: @[]];
 }
 %end
+
 
 // MARK: - MIME 类型转文件扩展名
 static NSString* mimeTypeToExtension(NSString *mimeType, MediaType mediaType) {
@@ -1627,61 +1631,50 @@ static NSURL* _injectHEICMetadata(NSURL *imageURL, NSString *identifier) {
 // MARK: - LivePhoto 视频处理（修正版）
 static NSURL* _processLivePhotoVideo(NSURL *videoURL, NSString *identifier) {
     AVAsset *asset = [AVAsset assetWithURL:videoURL];
+    if (!asset) return nil;
     
-    // 关键点1：修正元数据数据类型
+    // 创建元数据
     AVMutableMetadataItem *contentID = [[AVMutableMetadataItem alloc] init];
     contentID.keySpace = AVMetadataKeySpaceQuickTimeMetadata;
     contentID.key = @"com.apple.quicktime.content.identifier";
     contentID.value = identifier;
-    contentID.dataType = (__bridge NSString *)kCMMetadataBaseDataType_UTF8; // 保持UTF8编码
+    contentID.dataType = (__bridge NSString*)kCMMetadataBaseDataType_UTF8;
     
     AVMutableMetadataItem *stillTime = [[AVMutableMetadataItem alloc] init];
     stillTime.keySpace = AVMetadataKeySpaceQuickTimeMetadata;
     stillTime.key = @"com.apple.quicktime.still-image-time";
     stillTime.value = @(0);
-    stillTime.dataType = (__bridge NSString *)kCMMetadataBaseDataType_SInt32; // 改为32位整型[4](@ref)
-
-    // 关键点2：验证导出预设兼容性
-    NSArray *compatiblePresets = [AVAssetExportSession exportPresetsCompatibleWithAsset:asset];
-    if (![compatiblePresets containsObject:AVAssetExportPresetPassthrough]) {
-        NSLog(@"不支持的导出预设");
-        return nil;
-    }
-
-    // 关键点3：配置导出参数
-    AVAssetExportSession *exportSession = [AVAssetExportSession exportSessionWithAsset:asset 
-                                                                             presetName:AVAssetExportPresetPassthrough];
-    NSURL *outputURL = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:
-                                              [NSString stringWithFormat:@"%@.mov", [[NSUUID UUID] UUIDString]]]];
+    stillTime.dataType = (__bridge NSString*)kCMMetadataBaseDataType_SInt32; // 必须为32位
     
-    // 关键点4：设置输出参数
+    // 导出配置
+    AVAssetExportSession *exportSession = [AVAssetExportSession exportSessionWithAsset:asset presetName:AVAssetExportPresetPassthrough];
+    NSURL *outputURL = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:[NSString stringWithFormat:@"livephoto_%@.mov", [[NSUUID UUID] UUIDString]]]];
+    
     exportSession.outputURL = outputURL;
     exportSession.outputFileType = AVFileTypeQuickTimeMovie;
     exportSession.metadata = @[contentID, stillTime];
-    exportSession.directoryForTemporaryFiles = [NSURL fileURLWithPath:NSTemporaryDirectory()]; // 显式设置临时目录[1](@ref)
-
-    // 关键点5：增强错误处理
+    
+    // 强制视频轨道处理
+    NSArray *videoTracks = [asset tracksWithMediaType:AVMediaTypeVideo];
+    if (videoTracks.count > 0) {
+        AVAssetTrack *videoTrack = videoTracks[0];
+        exportSession.timeRange = CMTimeRangeMake(kCMTimeZero, videoTrack.timeRange.duration);
+    }
+    
+    // 同步导出
     dispatch_semaphore_t sema = dispatch_semaphore_create(0);
-    __block NSError *exportError = nil;
+    __block BOOL success = NO;
     [exportSession exportAsynchronouslyWithCompletionHandler:^{
-        switch (exportSession.status) {
-            case AVAssetExportSessionStatusFailed:
-                exportError = exportSession.error;
-                NSLog(@"导出失败: %@", exportError.localizedDescription);
-                break;
-            case AVAssetExportSessionStatusCancelled:
-                NSLog(@"导出取消");
-                break;
-            default: break;
-        }
+        success = (exportSession.status == AVAssetExportSessionStatusCompleted);
         dispatch_semaphore_signal(sema);
     }];
     dispatch_semaphore_wait(sema, DISPATCH_TIME_FOREVER);
     
-    return (exportError || ![[NSFileManager defaultManager] fileExistsAtPath:outputURL.path]) ? nil : outputURL;
+    return success ? outputURL : nil;
 }
 
 // MARK: - 相册保存（优化版）
+// 完全保持原有函数签名不变
 static void saveMedia(NSArray<NSURL *> *files, MediaType mediaType) {
     [PHPhotoLibrary requestAuthorization:^(PHAuthorizationStatus status) {
         if (status != PHAuthorizationStatusAuthorized) {
@@ -1690,19 +1683,27 @@ static void saveMedia(NSArray<NSURL *> *files, MediaType mediaType) {
         }
         
         [[PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
+            // 新增 Live Photo 处理分支
             if (mediaType == MediaTypeLivePhoto && files.count >= 2) {
+                // 提取图片和视频文件
+                NSURL *imageURL = files[0];
+                NSURL *videoURL = files[1];
+                
+                // 创建请求
                 PHAssetCreationRequest *request = [PHAssetCreationRequest creationRequestForAsset];
                 
-                // 添加图片资源
+                // 添加图片资源 (强制指定 HEIC 类型)
                 PHAssetResourceCreationOptions *photoOptions = [PHAssetResourceCreationOptions new];
-                photoOptions.uniformTypeIdentifier = @"public.heic"; // 直接指定 HEIC 类型
-                [request addResourceWithType:PHAssetResourceTypePhoto fileURL:files[0] options:photoOptions];
+                photoOptions.uniformTypeIdentifier = @"public.heic";
+                [request addResourceWithType:PHAssetResourceTypePhoto fileURL:imageURL options:photoOptions];
                 
-                // 添加视频资源
+                // 添加视频资源 (强制指定 MOV 类型)
                 PHAssetResourceCreationOptions *videoOptions = [PHAssetResourceCreationOptions new];
-                videoOptions.uniformTypeIdentifier = (__bridge NSString *)kUTTypeQuickTimeMovie;
-                [request addResourceWithType:PHAssetResourceTypePairedVideo fileURL:files[1] options:videoOptions];
+                videoOptions.uniformTypeIdentifier = @"com.apple.quicktime-movie";
+                [request addResourceWithType:PHAssetResourceTypePairedVideo fileURL:videoURL options:videoOptions];
+                
             } else {
+                // 原有其他媒体类型的处理逻辑保持不变
                 for (NSURL *url in files) {
                     if (mediaType == MediaTypeVideo) {
                         [PHAssetChangeRequest creationRequestForAssetFromVideoAtFileURL:url];
@@ -1721,7 +1722,9 @@ static void saveMedia(NSArray<NSURL *> *files, MediaType mediaType) {
                 if (success) {
                     showToast(@"保存成功", NO);
                 } else {
-                    showToast([NSString stringWithFormat:@"保存失败: %@ (Code %ld)", error.localizedDescription, error.userInfo], YES);
+                    showToast([NSString stringWithFormat:@"保存失败: %@ (Code %ld)", 
+                             error.localizedDescription, 
+                             (long)error.code], YES);
                 }
             });
         }];
