@@ -1382,7 +1382,6 @@ static void showToast(NSString *message, BOOL isError);
         
         // 当前图片处理
         if (currentImage) {
-            if (currentImage.clipVideo) { // Live Photo
                 [customActions addObject:@{
                     @"title": @"下载当前实况照片",
                     @"type": @(MediaTypeLivePhoto),
@@ -1401,7 +1400,6 @@ static void showToast(NSString *message, BOOL isError);
                         }
                     }
                 }];
-            } else { // 普通图片
                 [customActions addObject:@{
                     @"title": @"下载当前图片",
                     @"type": @(MediaTypeImage),
@@ -1413,8 +1411,9 @@ static void showToast(NSString *message, BOOL isError);
                         }
                     }
                 }];
-            }
+
         }
+}
         
         // 下载全部图片
         [customActions addObject:@{
