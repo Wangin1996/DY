@@ -1588,7 +1588,7 @@ static NSURL* _processLivePhotoVideo(NSURL *videoURL, NSString *identifier) {
     contentID.dataType = (__bridge NSString *)kCMMetadataBaseDataType_UTF8;
     
     AVMutableMetadataItem *stillTime = [[AVMutableMetadataItem alloc] init];
-    stillTime.identifier = AVMetadataIdentifierQuickTimeMetadataStillImageTime;
+    stillTime.identifier = @"com.apple.quicktime.still-image-time";
     stillTime.value = @(0);
     stillTime.dataType = (__bridge NSString *)kCMMetadataBaseDataType_SInt8;
     
