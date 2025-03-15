@@ -1350,13 +1350,13 @@ typedef NS_ENUM(NSUInteger, MediaType) {
 #import <ImageIO/ImageIO.h>
 #import <MobileCoreServices/MobileCoreServices.h>
 
-// MARK: - 类型定义
-typedef NS_ENUM(NSUInteger, MediaType) {
-    MediaTypeImage,
-    MediaTypeVideo,
-    MediaTypeAudio,
-    MediaTypeLivePhoto
-};
+
+
+
+
+
+
+
 
 // MARK: - 前置声明
 static void saveMedia(NSArray<NSURL *> *mediaURLs, MediaType mediaType);
@@ -1533,7 +1533,7 @@ static void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
                 NSError *fileError;
                 if ([[NSFileManager defaultManager] moveItemAtURL:processedURL toURL:destURL error:&fileError]) {
                     @synchronized(tempFiles) {
-                        [tempFiles addObject:destURL);
+                        [tempFiles addObject:destURL)];
                     }
                 } else {
                     NSLog(@"文件移动失败: %@", fileError);
@@ -1571,9 +1571,11 @@ static void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
 static NSURL* _injectHEICMetadata(NSURL *imageURL, NSString *identifier) {
     CGImageSourceRef source = CGImageSourceCreateWithURL((__bridge CFURLRef)imageURL, NULL);
     if (!source) return nil;
-    
+
+    CFStringRef heicUTI = CFSTR("public.heic"); 
+
     NSURL *heicURL = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.heic", [[NSUUID UUID] UUIDString]]]];
-    CGImageDestinationRef destination = CGImageDestinationCreateWithURL((__bridge CFURLRef)heicURL, kUTTypeHEIC, 1, NULL);
+    CGImageDestinationRef destination = CGImageDestinationCreateWithURL((__bridge CFURLRef)heicURL, heicUTI, 1, NULL);
     if (!destination) {
         CFRelease(source);
         return nil;
