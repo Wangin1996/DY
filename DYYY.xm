@@ -1515,7 +1515,7 @@ static void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
             if (!error && location) {
                 NSString *extension = mimeTypeToExtension(response.MIMEType, mediaType);
                 if (mediaType == MediaTypeLivePhoto) {
-                    extension = (tempFiles.count == 0) ? @"jpg" : @"mov";
+                    extension = (tempFiles.count == 0) ? @"heic" : @"mov";
                 }
                 
                 NSURL *tempDir = [NSURL fileURLWithPath:NSTemporaryDirectory()];
