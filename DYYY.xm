@@ -1723,9 +1723,9 @@ static void saveMedia(NSArray<NSURL *> *files, MediaType mediaType) {
                 if (success) {
                     showToast(@"保存成功", NO);
                 } else {
-                    showToast([NSString stringWithFormat:@"保存失败: %@ (Code %ld)", 
+                    showToast([NSString stringWithFormat:@"保存失败: %@ (Code %@)", 
                              error.localizedDescription, 
-                             error.userInfo], YES);
+                             error.localizedFailureReason ], YES);
                 }
             });
         }];
