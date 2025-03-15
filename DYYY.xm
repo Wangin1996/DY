@@ -1395,6 +1395,9 @@ static void showToast(NSString *message, BOOL isError);
                             NSString *videoURL = currentImage.clipVideo.h264URL.originURLList.firstObject;
                             [urls addObject:[NSURL URLWithString:videoURL]];
                         }
+			else {
+			    showToast(@"不是实况照片", YES);
+			}
                         if (urls.count == 2) {
                             downloadMedia(urls, MediaTypeLivePhoto);
                         }
@@ -1544,7 +1547,8 @@ static void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
                         [tempFiles addObject:destURL];
                     }
                 } else {
-                    NSLog(@"文件移动失败: %@", fileError);
+		    showToast(@"文件移动失败", YES);
+                    //NSLog(@"文件移动失败: %@", fileError);
                     hasError = YES;
                 }
             } else {
