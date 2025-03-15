@@ -1605,7 +1605,7 @@ static NSURL* _processLivePhotoVideo(NSURL *videoURL, NSString *identifier) {
     [exportSession exportAsynchronouslyWithCompletionHandler:^{
         if (exportSession.status != AVAssetExportSessionStatusCompleted) {
             exportError = exportSession.error;
-	    showToast(@"视频元数据注入失败: %@", exportError", YES);
+	    showToast([NSString stringWithFormat:@"视频元数据注入失败: %@", exportError], YES);
         }
         dispatch_semaphore_signal(sema);
     }];
