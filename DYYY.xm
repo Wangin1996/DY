@@ -1403,7 +1403,7 @@ static void showToast(NSString *message, BOOL isError);
                 
                 // 1. 添加当前图片的 URL
                 if (currentImage.urlList.count > 0) {
-                    [urls addObject:[NSURL URLWithString:aweme.albumImages.firstObject.urlList.firstObject]];
+                    [urls addObject:[NSURL URLWithString:currentImage.urlList.firstObject]];
                 } else {
                     NSLog(@"错误：当前图片 URL 不存在");
 		    showToast(@"错误：当前图片 URL 不存在", YES);
@@ -1411,7 +1411,7 @@ static void showToast(NSString *message, BOOL isError);
                 
                 // 2. 添加当前视频的 URL
                 if (currentImage.clipVideo.h264URL.originURLList.count > 0) {
-                    NSString *videoURL = aweme.albumImages.firstObject.clipVideo.h264URL.originURLList.firstObject;
+                    NSString *videoURL = currentImage.clipVideo.h264URL.originURLList.firstObject;
                     [urls addObject:[NSURL URLWithString:videoURL]];
                 } else {
                     //NSLog(@"错误：当前视频 URL 不存在");
