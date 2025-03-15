@@ -1533,7 +1533,7 @@ static void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
                 NSError *fileError;
                 if ([[NSFileManager defaultManager] moveItemAtURL:processedURL toURL:destURL error:&fileError]) {
                     @synchronized(tempFiles) {
-                        [tempFiles addObject:destURL)];
+                        [tempFiles addObject:destURL];
                     }
                 } else {
                     NSLog(@"文件移动失败: %@", fileError);
