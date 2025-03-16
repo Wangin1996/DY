@@ -1525,6 +1525,9 @@ static void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
                             extension = @"heic";
                         } else {
                             hasError = YES;
+                            showToast(@"HEIC 元数据注入失败", YES);
+                            dispatch_group_leave(group);
+                            return;
                         }
                     } else if ([extension isEqualToString:@"mov"]) {
                         NSURL *newVideoURL = _processLivePhotoVideo(location, assetIdentifier);
@@ -1532,6 +1535,9 @@ static void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
                             processedURL = newVideoURL;
                         } else {
                             hasError = YES;
+                            showToast(@"Live Photo 视频处理失败", YES);
+                            dispatch_group_leave(group);
+                            return;
                         }
                     }
                 }
@@ -1546,12 +1552,16 @@ static void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
                         [tempFiles addObject:destURL];
                     }
                 } else {
-		    showToast(@"文件移动失败", YES);
-                    //NSLog(@"文件移动失败: %@", fileError);
+                    showToast(@"文件移动失败", YES);
                     hasError = YES;
+                    dispatch_group_leave(group);
+                    return;
                 }
             } else {
                 hasError = YES;
+                showToast(@"文件下载失败", YES);
+                dispatch_group_leave(group);
+                return;
             }
             dispatch_group_leave(group);
         }];
