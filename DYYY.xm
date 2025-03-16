@@ -1431,7 +1431,7 @@ typedef void (^LivePhotoCompletionHandler)(BOOL success, NSError *_Nullable erro
                 if (info[PHLivePhotoInfoErrorKey]) {
                     completion(NO, info[PHLivePhotoInfoErrorKey]);
                 } else {
-                    [self saveLivePhotoToLibrary:livePhoto completion:completion];
+                    [self saveLivePhotoToLibraryWithJPEG:processedJPEG MOV:processedMOV completion:completion];
                 }
             }];
         }];
@@ -1520,16 +1520,15 @@ typedef void (^LivePhotoCompletionHandler)(BOOL success, NSError *_Nullable erro
 }
 
 #pragma mark - 存储到相册
-+ (void)saveLivePhotoToLibrary:(PHLivePhoto *)livePhoto
-                    completion:(LivePhotoCompletionHandler)completion {
++ (void)saveLivePhotoToLibraryWithJPEG:(NSURL *)processedJPEG MOV:(NSURL *)processedMOV completion:(LivePhotoCompletionHandler)completion {
     [[PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
         PHAssetCreationRequest *request = [PHAssetCreationRequest creationRequestForAsset];
-        if (livePhoto.photoURL && livePhoto.videoURL) {
+        if (processedJPEG && processedMOV) {
             [request addResourceWithType:PHAssetResourceTypePhoto 
-                                 fileURL:livePhoto.photoURL 
+                                 fileURL:processedJPEG 
                                  options:nil];
             [request addResourceWithType:PHAssetResourceTypeVideo 
-                                 fileURL:livePhoto.videoURL 
+                                 fileURL:processedMOV 
                                  options:nil];
         }
     } completionHandler:^(BOOL success, NSError * _Nullable error) {
