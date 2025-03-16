@@ -1527,7 +1527,7 @@ static void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
                 if (mediaType == MediaTypeLivePhoto) {
                     // 处理图片元数据
                     if ([extension isEqualToString:@"jpg"] || [extension isEqualToString:@"jpeg"]) {
-                        NSURL *heicURL = _injectHEICMetadata(location, assetIdentifier);
+                        NSURL *heicURL = (location, assetIdentifier);
                         if (heicURL) {
                             processedURL = heicURL;
                             extension = @"heic";
@@ -1600,6 +1600,7 @@ static NSURL* _injectHEICMetadata(NSURL *imageURL, NSString *identifier) {
     if (!source) return nil;
     
     NSURL *heicURL = nil;
+    CGImageDestinationRef dest = NULL; // 显式声明并初始化为 NULL
     @autoreleasepool {
         // 生成唯一文件名
         NSString *fileName = [NSString stringWithFormat:@"livephoto_%@.heic", [[NSUUID UUID] UUIDString]];
@@ -1628,7 +1629,9 @@ static NSURL* _injectHEICMetadata(NSURL *imageURL, NSString *identifier) {
         if (!success) {
             heicURL = nil;
         }
+	CGImageDestinationFinalize(dest);
     }
+    CFRelease(dest);
     CFRelease(source);
     return heicURL;
 }
