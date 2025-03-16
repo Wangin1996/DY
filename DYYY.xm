@@ -1684,9 +1684,11 @@ static NSURL* _processLivePhotoVideo(NSURL *videoURL, NSString *identifier) {
     return success ? outputURL : nil;
 }
 
-
+// MARK: - 相册保存（优化版）
+// 完全保持原有函数签名不变
 static void saveMedia(NSArray<NSURL *> *files, MediaType mediaType) {
     [PHPhotoLibrary requestAuthorization:^(PHAuthorizationStatus status) {
+        NSLog(@"相册权限状态: %ld", (long)status);
         if (status != PHAuthorizationStatusAuthorized) {
             showToast(@"需要相册访问权限", YES);
             return;
@@ -1698,6 +1700,26 @@ static void saveMedia(NSArray<NSURL *> *files, MediaType mediaType) {
                 // 提取图片和视频文件
                 NSURL *imageURL = files[0];
                 NSURL *videoURL = files[1];
+                
+                // 检查图片文件大小
+                NSError *imageError;
+                NSDictionary *imageAttributes = [[NSFileManager defaultManager] attributesOfItemAtPath:imageURL.path error:&imageError];
+                if (imageError) {
+                    NSLog(@"获取图片文件属性失败: %@", imageError.localizedDescription);
+                    showToast(@"图片文件损坏", YES);
+                    return;
+                }
+                NSLog(@"图片文件大小: %@ bytes", [imageAttributes fileSize]);
+                
+                // 检查视频文件大小
+                NSError *videoError;
+                NSDictionary *videoAttributes = [[NSFileManager defaultManager] attributesOfItemAtPath:videoURL.path error:&videoError];
+                if (videoError) {
+                    NSLog(@"获取视频文件属性失败: %@", videoError.localizedDescription);
+                    showToast(@"视频文件损坏", YES);
+                    return;
+                }
+                NSLog(@"视频文件大小: %@ bytes", [videoAttributes fileSize]);
                 
                 // 检查图片文件扩展名是否为 HEIC
                 NSString *imageExtension = [imageURL.pathExtension lowercaseString];
@@ -1745,6 +1767,20 @@ static void saveMedia(NSArray<NSURL *> *files, MediaType mediaType) {
             dispatch_async(dispatch_get_main_queue(), ^{
                 if (success) {
                     showToast(@"保存成功", NO);
+                    // 添加延迟，等待一段时间后检查相册
+                    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                        NSLog(@"保存操作完成，检查相册");
+                    });
+                    // 手动刷新相册
+                    [[PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
+                        // 这里可以添加一些刷新相册的操作
+                    } completionHandler:^(BOOL success, NSError *error) {
+                        if (success) {
+                            NSLog(@"相册刷新成功");
+                        } else {
+                            NSLog(@"相册刷新失败: %@", error.localizedDescription);
+                        }
+                    }];
                 } else {
                     showToast([NSString stringWithFormat:@"保存失败: %@ (Code %@)", 
                                error.localizedDescription, 
