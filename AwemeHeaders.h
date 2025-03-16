@@ -4,6 +4,11 @@
 @class AWEAwemeModel;
 @class CityManager;
 
+@interface DUXToast : UIView
++ (void)showText:(id)arg1 withCenterPoint:(CGPoint)arg2;
++ (void)showText:(id)arg1;
+@end
+
 // AWELongPressPanelBaseViewModel
 @interface AWELongPressPanelBaseViewModel : NSObject
 @property (nonatomic, strong) AWEAwemeModel *awemeModel;
