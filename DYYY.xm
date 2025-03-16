@@ -1341,6 +1341,14 @@ static UIViewController *topView(void) {
 #import <MobileCoreServices/MobileCoreServices.h>
 #import <objc/runtime.h>
 
+#ifndef kUTTypeHEIC
+#define kUTTypeHEIC ((__bridge CFStringRef)@"public.heic")
+#endif
+
+#ifndef kUTTypeQuickTimeMovie
+#define kUTTypeQuickTimeMovie ((__bridge CFStringRef)@"com.apple.quicktime-movie")
+#endif
+
 // MARK: - 类型定义
 typedef NS_ENUM(NSUInteger, DYYYMediaType) {
     DYYYMediaTypeImage,
