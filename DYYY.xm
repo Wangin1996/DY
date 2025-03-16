@@ -1527,7 +1527,7 @@ static void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
                 if (mediaType == MediaTypeLivePhoto) {
                     // 处理图片元数据
                     if ([extension isEqualToString:@"jpg"] || [extension isEqualToString:@"jpeg"]) {
-                        NSURL *heicURL = (location, assetIdentifier);
+                        NSURL *heicURL = _injectHEICMetadata(location, assetIdentifier);
                         if (heicURL) {
                             processedURL = heicURL;
                             extension = @"heic";
