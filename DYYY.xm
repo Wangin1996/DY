@@ -1342,14 +1342,6 @@ static UIViewController *topView(void) {
 #import <MobileCoreServices/MobileCoreServices.h>
 #import <objc/runtime.h>
 
-// MARK: - 兼容性定义（iOS 11+）
-#ifndef kUTTypeHEIC
-#define kUTTypeHEIC ((__bridge CFStringRef)@"public.heic")
-#endif
-#ifndef kUTTypeQuickTimeMovie
-#define kUTTypeQuickTimeMovie ((__bridge CFStringRef)@"com.apple.quicktime-movie")
-#endif
-
 // MARK: - 类型定义
 typedef NS_ENUM(NSUInteger, DYYYMediaType) {
     DYYYMediaTypeImage,
@@ -1357,11 +1349,17 @@ typedef NS_ENUM(NSUInteger, DYYYMediaType) {
     DYYYMediaTypeLivePhoto
 };
 
-// MARK: - 私有接口扩展
+// MARK: - 接口扩展
 @interface AWELongPressPanelTableViewController (DYYYPlugin)
+
+// 新增方法声明
 - (void)dyyy_downloadLivePhotoWithImageURL:(NSString *)imgURL videoURL:(NSString *)videoURL;
-- (void)dyyy_downloadMediaWithURL:(NSString *)url type:(DYYYMediaType)type;
+- (NSURL *)_processImage:(NSURL *)imgURL identifier:(NSString *)ID;
+- (NSURL *)_processVideo:(NSURL *)videoURL identifier:(NSString *)ID;
+- (void)_saveLivePhotoWithImage:(NSURL *)imgURL video:(NSURL *)videoURL;
+- (void)_downloadAsset:(NSString *)url completion:(void(^)(NSURL *))completion;
 - (void)dyyy_showToast:(NSString *)message isError:(BOOL)isError;
+
 @end
 
 // MARK: - Hook实现
@@ -1424,62 +1422,53 @@ typedef NS_ENUM(NSUInteger, DYYYMediaType) {
     return orig;
 }
 
-// MARK: - 下载处理方法
+// MARK: - 新增方法实现
 %new
 - (void)dyyy_downloadLivePhotoWithImageURL:(NSString *)imgURL videoURL:(NSString *)videoURL {
     dispatch_group_t group = dispatch_group_create();
-    __block NSURL *processedImg, *processedVideo;
+    __block NSURL *processedImage = nil;
+    __block NSURL *processedVideo = nil;
     NSString *assetID = [[NSUUID UUID] UUIDString];
     
-    // 下载图片
+    // 下载并处理图片
     dispatch_group_enter(group);
-    [self _downloadAsset:imgURL completion:^(NSURL *tmpImg) {
-        processedImg = [self _processImage:tmpImg identifier:assetID];
+    [self _downloadAsset:imgURL completion:^(NSURL *tmpImage) {
+        processedImage = [self _processImage:tmpImage identifier:assetID];
         dispatch_group_leave(group);
     }];
     
-    // 下载视频（带PC UA）
+    // 下载并处理视频
     dispatch_group_enter(group);
-    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:videoURL]];
-    [request setValue:@"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36" 
-   forHTTPHeaderField:@"User-Agent"];
-    [[[NSURLSession sharedSession] dataTaskWithRequest:request completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
-        if (data) {
-            NSURL *tmpVideo = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:[assetID stringByAppendingString:@".tmp"]]];
-            [data writeToURL:tmpVideo atomically:YES];
-            processedVideo = [self _processVideo:tmpVideo identifier:assetID];
-        }
+    [self _downloadAsset:videoURL completion:^(NSURL *tmpVideo) {
+        processedVideo = [self _processVideo:tmpVideo identifier:assetID];
         dispatch_group_leave(group);
-    }] resume];
+    }];
     
-    // 最终处理
     dispatch_group_notify(group, dispatch_get_main_queue(), ^{
-        if (processedImg && processedVideo) {
-            [self _saveLivePhotoWithImage:processedImg video:processedVideo];
+        if (processedImage && processedVideo) {
+            [self _saveLivePhotoWithImage:processedImage video:processedVideo];
         } else {
             [self dyyy_showToast:@"下载失败" isError:YES];
         }
     });
 }
 
-// MARK: - 媒体处理核心
 %new
 - (NSURL *)_processImage:(NSURL *)imgURL identifier:(NSString *)ID {
-    CGImageSourceRef src = CGImageSourceCreateWithURL((__bridge CFURLRef)imgURL, NULL);
-    NSMutableDictionary *metadata = [(__bridge NSDictionary*)CGImageSourceCopyPropertiesAtIndex(src, 0, NULL) mutableCopy];
+    CGImageSourceRef source = CGImageSourceCreateWithURL((__bridge CFURLRef)imgURL, NULL);
+    NSMutableDictionary *metadata = [(__bridge NSDictionary*)CGImageSourceCopyPropertiesAtIndex(source, 0, NULL) mutableCopy];
     
-    // 注入关键元数据
+    // 注入元数据
     metadata[(__bridge id)kCGImagePropertyMakerAppleDictionary] = @{ @"17" : ID };
-    metadata[@"ContentIdentifier"] = ID;
     
-    NSURL *output = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:[ID stringByAppendingString:@".heic"]]];
-    CGImageDestinationRef dest = CGImageDestinationCreateWithURL((__bridge CFURLRef)output, kUTTypeHEIC, 1, NULL);
-    CGImageDestinationAddImageFromSource(dest, src, 0, (__bridge CFDictionaryRef)metadata);
+    NSURL *outputURL = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:[ID stringByAppendingString:@".heic"]]];
+    CGImageDestinationRef dest = CGImageDestinationCreateWithURL((__bridge CFURLRef)outputURL, kUTTypeHEIC, 1, NULL);
+    CGImageDestinationAddImageFromSource(dest, source, 0, (__bridge CFDictionaryRef)metadata);
     CGImageDestinationFinalize(dest);
     
-    CFRelease(src);
+    CFRelease(source);
     CFRelease(dest);
-    return output;
+    return outputURL;
 }
 
 %new
@@ -1489,12 +1478,12 @@ typedef NS_ENUM(NSUInteger, DYYYMediaType) {
     
     // 配置元数据
     AVMutableMetadataItem *contentID = [[AVMutableMetadataItem alloc] init];
-    contentID.key = @"com.apple.quicktime.content.identifier";
-    contentID.keySpace = @"mdta";
+    contentID.key = kKeyContentIdentifier;
+    contentID.keySpace = kKeySpaceQuickTimeMetadata;
     contentID.value = ID;
     
     AVMutableMetadataItem *stillTime = [[AVMutableMetadataItem alloc] init];
-    stillTime.key = @"com.apple.quicktime.still-image-time";
+    stillTime.key = kKeyStillImageTime;
     stillTime.value = @(CMTimeGetSeconds(asset.duration)/2);
     
     exporter.metadata = @[contentID, stillTime];
@@ -1513,7 +1502,6 @@ typedef NS_ENUM(NSUInteger, DYYYMediaType) {
     return success ? exporter.outputURL : nil;
 }
 
-// MARK: - 相册保存
 %new
 - (void)_saveLivePhotoWithImage:(NSURL *)imgURL video:(NSURL *)videoURL {
     [PHPhotoLibrary requestAuthorization:^(PHAuthorizationStatus status) {
@@ -1525,29 +1513,23 @@ typedef NS_ENUM(NSUInteger, DYYYMediaType) {
         [[PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
             PHAssetCreationRequest *request = [PHAssetCreationRequest creationRequestForAsset];
             
-            // 添加HEIC资源
+            // 添加图片资源
             PHAssetResourceCreationOptions *imgOptions = [PHAssetResourceCreationOptions new];
             imgOptions.uniformTypeIdentifier = (__bridge NSString*)kUTTypeHEIC;
             [request addResourceWithType:PHAssetResourceTypePhoto fileURL:imgURL options:imgOptions];
             
-            // 添加MOV资源
+            // 添加视频资源
             PHAssetResourceCreationOptions *videoOptions = [PHAssetResourceCreationOptions new];
             videoOptions.uniformTypeIdentifier = (__bridge NSString*)kUTTypeQuickTimeMovie;
             [request addResourceWithType:PHAssetResourceTypePairedVideo fileURL:videoURL options:videoOptions];
         } completionHandler:^(BOOL success, NSError *error) {
-            // 清理临时文件
             [[NSFileManager defaultManager] removeItemAtURL:imgURL error:nil];
             [[NSFileManager defaultManager] removeItemAtURL:videoURL error:nil];
-            
-            dispatch_async(dispatch_get_main_queue(), ^{
-                [self dyyy_showToast:success ? @"保存成功" : [NSString stringWithFormat:@"失败: %@", error.localizedDescription] 
-                           isError:!success];
-            });
+            [self dyyy_showToast:success ? @"保存成功" : [NSString stringWithFormat:@"失败: %@", error.localizedDescription] isError:!success];
         }];
     }];
 }
 
-// MARK: - 工具方法
 %new
 - (void)_downloadAsset:(NSString *)url completion:(void(^)(NSURL *))completion {
     NSURLSessionDownloadTask *task = [[NSURLSession sharedSession] downloadTaskWithURL:[NSURL URLWithString:url] completionHandler:^(NSURL *location, NSURLResponse *response, NSError *error) {
@@ -1562,10 +1544,10 @@ typedef NS_ENUM(NSUInteger, DYYYMediaType) {
 }
 
 %new
-- (void)dyyy_showToast:(NSString *)msg isError:(BOOL)isError {
+- (void)dyyy_showToast:(NSString *)message isError:(BOOL)isError {
     dispatch_async(dispatch_get_main_queue(), ^{
         UIAlertController *alert = [UIAlertController alertControllerWithTitle:nil
-                                                                     message:msg
+                                                                     message:message
                                                               preferredStyle:UIAlertControllerStyleAlert];
         UIViewController *rootVC = [UIApplication sharedApplication].keyWindow.rootViewController;
         [rootVC presentViewController:alert animated:YES completion:^{
@@ -1578,7 +1560,6 @@ typedef NS_ENUM(NSUInteger, DYYYMediaType) {
 
 %end
 
-// MARK: - 模块初始化
 %ctor {
     %init(AWELongPressPanelTableViewController = objc_getClass("AWELongPressPanelTableViewController"));
 }
