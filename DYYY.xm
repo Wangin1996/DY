@@ -1757,12 +1757,42 @@ static void saveMedia(NSArray<NSURL *> *files, MediaType mediaType) {
 static void saveLivePhotoToLibrary(PHLivePhoto *livePhoto, void (^completion)(BOOL success, NSError * _Nullable error)) {
     [[PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
         PHAssetCreationRequest *request = [PHAssetCreationRequest creationRequestForAsset];
-        [request addResourceWithType:PHAssetResourceTypePhoto 
-                             fileURL:livePhoto.photoURL 
-                             options:nil];
-        [request addResourceWithType:PHAssetResourceTypeVideo 
-                             fileURL:livePhoto.videoURL 
-                             options:nil];
+
+        // 获取图片资源
+        NSString *tempPhotoPath = [NSTemporaryDirectory() stringByAppendingPathComponent:@"tempPhoto.heic"];
+        NSURL *tempPhotoURL = [NSURL fileURLWithPath:tempPhotoPath];
+        [PHAssetResourceManager.defaultManager writeDataForAssetResource:livePhoto.photoResource
+                                                         toFileURL:tempPhotoURL
+                                                         options:nil
+                                                         completionHandler:^(BOOL success, NSError * _Nullable error) {
+            if (success) {
+                [request addResourceWithType:PHAssetResourceTypePhoto
+                                     fileURL:tempPhotoURL
+                                     options:nil];
+            } else {
+                completion(NO, error);
+                return;
+            }
+
+            // 获取视频资源
+            NSString *tempVideoPath = [NSTemporaryDirectory() stringByAppendingPathComponent:@"tempVideo.mov"];
+            NSURL *tempVideoURL = [NSURL fileURLWithPath:tempVideoPath];
+            [PHAssetResourceManager.defaultManager writeDataForAssetResource:livePhoto.videoResource
+                                                             toFileURL:tempVideoURL
+                                                             options:nil
+                                                             completionHandler:^(BOOL success, NSError * _Nullable error) {
+                if (success) {
+                    [request addResourceWithType:PHAssetResourceTypePairedVideo
+                                         fileURL:tempVideoURL
+                                         options:nil];
+                } else {
+                    completion(NO, error);
+                    return;
+                }
+
+                completion(YES, nil);
+            }];
+        }];
     } completionHandler:^(BOOL success, NSError * _Nullable error) {
         completion(success, error);
     }];
