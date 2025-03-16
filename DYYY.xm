@@ -1475,7 +1475,8 @@ typedef void (^LivePhotoCompletionHandler)(BOOL success, NSError *_Nullable erro
        contentIdentifier:(NSString *)identifier
                completion:(void(^)(BOOL, NSError *))completion {
     CGImageSourceRef source = CGImageSourceCreateWithURL((CFURLRef)inputURL, NULL);
-    NSDictionary *metadata = (NSDictionary *)CGImageSourceCopyPropertiesAtIndex(source, 0, NULL);
+    // 修复桥接转换
+    NSDictionary *metadata = (__bridge_transfer NSDictionary *)CGImageSourceCopyPropertiesAtIndex(source, 0, NULL);
     
     // 创建目标文件
     CGImageDestinationRef destination = CGImageDestinationCreateWithURL((CFURLRef)outputURL, kUTTypeJPEG, 1, NULL);
@@ -1502,9 +1503,11 @@ typedef void (^LivePhotoCompletionHandler)(BOOL success, NSError *_Nullable erro
     AVAssetExportSession *exportSession = [AVAssetExportSession exportSessionWithAsset:asset presetName:AVAssetExportPresetPassthrough];
     
     // 设置输出元数据
-    AVMutableMetadataItem *item = [AVMutableMetadataItem metadataItemWithIdentifier:@"com.apple.quicktime.content.identifier"
-                                                                              value:identifier];
-    item.dataType = (NSString *)kCMMetadataDataType_UTF8;
+    AVMutableMetadataItem *item = [[AVMutableMetadataItem alloc] init];
+    item.keySpace = AVMetadataKeySpaceQuickTimeMetadata;
+    item.key = @"com.apple.quicktime.content.identifier";
+    item.value = identifier;
+    item.dataType = (__bridge NSString*)kCMMetadataBaseDataType_UTF8;
     
     exportSession.outputFileType = AVFileTypeQuickTimeMovie;
     exportSession.outputURL = outputURL;
@@ -1521,12 +1524,17 @@ typedef void (^LivePhotoCompletionHandler)(BOOL success, NSError *_Nullable erro
                     completion:(LivePhotoCompletionHandler)completion {
     [[PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
         PHAssetCreationRequest *request = [PHAssetCreationRequest creationRequestForAsset];
-        [request addResourceWithType:PHAssetResourceTypePhoto 
-                             fileURL:livePhoto.photoURL 
-                             options:nil];
-        [request addResourceWithType:PHAssetResourceTypeVideo 
-                             fileURL:livePhoto.videoURL 
-                             options:nil];
+        NSArray<NSURL *> *resourceFileURLs = livePhoto.resourceFileURLs;
+        if (resourceFileURLs.count >= 2) {
+            NSURL *photoURL = resourceFileURLs[0];
+            NSURL *videoURL = resourceFileURLs[1];
+            [request addResourceWithType:PHAssetResourceTypePhoto 
+                                 fileURL:photoURL 
+                                 options:nil];
+            [request addResourceWithType:PHAssetResourceTypeVideo 
+                                 fileURL:videoURL 
+                                 options:nil];
+        }
     } completionHandler:^(BOOL success, NSError * _Nullable error) {
         completion(success, error);
     }];
