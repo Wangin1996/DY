@@ -1341,6 +1341,11 @@ static UIViewController *topView(void) {
 #import <MobileCoreServices/MobileCoreServices.h>
 #import <objc/runtime.h>
 
+// MARK: - Live Photo 元数据键定义
+static NSString *const kKeyContentIdentifier = @"com.apple.quicktime.content.identifier";
+static NSString *const kKeySpaceQuickTimeMetadata = @"mdta";
+static NSString *const kKeyStillImageTime = @"com.apple.quicktime.still-image-time";
+
 #ifndef kUTTypeHEIC
 #define kUTTypeHEIC ((__bridge CFStringRef)@"public.heic")
 #endif
