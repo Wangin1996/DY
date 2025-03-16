@@ -1571,33 +1571,42 @@ static NSURL* _injectHEICMetadata(NSURL *imageURL, NSString *identifier) {
     CGImageSourceRef source = CGImageSourceCreateWithURL((__bridge CFURLRef)imageURL, NULL);
     if (!source) return nil;
     
-    NSURL *outputURL = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:[NSString stringWithFormat:@"live_%@.heic", [[NSUUID UUID] UUIDString]]]];
-    CGImageDestinationRef destination = CGImageDestinationCreateWithURL((__bridge CFURLRef)outputURL, kUTTypeHEIC, 1, NULL);
+    // 使用iOS 15+推荐的HEIC类型标识方法
+    CFStringRef heicUTI = UTTypeCreatePreferredIdentifierForTag(kUTTagClassMIMEType, CFSTR("image/heic"), kUTTypeImage);
+    
+    NSURL *outputURL = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:
+                                            [NSString stringWithFormat:@"live_%@.heic", [[NSUUID UUID] UUIDString]]]];
+    CGImageDestinationRef destination = CGImageDestinationCreateWithURL((__bridge CFURLRef)outputURL, heicUTI, 1, NULL);
     
     if (!destination) {
         CFRelease(source);
+        CFRelease(heicUTI);
         return nil;
     }
     
-    // 构建元数据
+    // 构建iOS 15兼容的元数据
     NSMutableDictionary *metadata = [(__bridge NSDictionary*)CGImageSourceCopyPropertiesAtIndex(source, 0, NULL) mutableCopy];
     NSMutableDictionary *makerApple = [NSMutableDictionary dictionary];
     makerApple[@"17"] = identifier; // ContentIdentifier
     makerApple[@"11"] = identifier; // AssetIdentifier
     metadata[(__bridge NSString*)kCGImagePropertyMakerAppleDictionary] = makerApple;
     
-    // 保留原始ICC配置
-    NSData *iccProfile = CFBridgingRelease(CGImageSourceCopyAuxiliaryDataInfoAtIndex(source, 0, kCGImageAuxiliaryDataTypeICCProfile));
-    if (iccProfile) {
-        metadata[(NSString*)kCGImagePropertyICCProfile] = iccProfile;
+    // 添加iOS 15色彩空间处理
+    if (@available(iOS 15.0, *)) {
+        NSData *iccData = CFBridgingRelease(CGImageSourceCopyAuxiliaryDataInfoAtIndex(source, 0, kCGImageAuxiliaryDataTypePortraitEffectsMatte));
+        if (iccData) {
+            metadata[@"ColorProfile"] = iccData;
+        }
     }
     
     // 写入文件
     CGImageDestinationAddImageFromSource(destination, source, 0, (__bridge CFDictionaryRef)metadata);
     BOOL success = CGImageDestinationFinalize(destination);
     
+    // 释放资源
     CFRelease(source);
     CFRelease(destination);
+    CFRelease(heicUTI);
     
     return success ? outputURL : nil;
 }
@@ -1608,28 +1617,43 @@ static NSURL* _processLivePhotoVideo(NSURL *videoURL, NSString *identifier) {
     AVAssetTrack *videoTrack = [[asset tracksWithMediaType:AVMediaTypeVideo] firstObject];
     if (!videoTrack) return nil;
     
+    // 创建带HDR支持的合成器
     AVMutableComposition *composition = [AVMutableComposition composition];
-    AVMutableCompositionTrack *videoCompTrack = [composition addMutableTrackWithMediaType:AVMediaTypeVideo preferredTrackID:kCMPersistentTrackID_Invalid];
-    [videoCompTrack insertTimeRange:CMTimeRangeMake(kCMTimeZero, asset.duration) ofTrack:videoTrack atTime:kCMTimeZero error:nil];
+    AVMutableCompositionTrack *videoCompTrack = [composition addMutableTrackWithMediaType:AVMediaTypeVideo
+                                                                        preferredTrackID:kCMPersistentTrackID_Invalid];
+    [videoCompTrack insertTimeRange:CMTimeRangeMake(kCMTimeZero, asset.duration)
+                           ofTrack:videoTrack
+                            atTime:kCMTimeZero
+                             error:nil];
     
-    // 构建元数据
+    // iOS 15元数据配置
     AVMutableMetadataItem *contentID = [[AVMutableMetadataItem alloc] init];
     contentID.keySpace = AVMetadataKeySpaceQuickTimeMetadata;
     contentID.key = @"com.apple.quicktime.content.identifier";
     contentID.value = identifier;
+    contentID.dataType = (__bridge NSString *)kCMMetadataBaseDataType_UTF8;
     
     AVMutableMetadataItem *stillTime = [[AVMutableMetadataItem alloc] init];
     stillTime.keySpace = AVMetadataKeySpaceQuickTimeMetadata;
     stillTime.key = @"com.apple.quicktime.still-image-time";
     stillTime.value = @(0);
-    stillTime.dataType = (__bridge NSString *)kCMMetadataBaseDataTypeSInt32;
+    stillTime.dataType = (__bridge NSString *)kCMMetadataBaseDataType_SInt32;
     
-    // 导出配置
-    AVAssetExportSession *exportSession = [AVAssetExportSession exportSessionWithAsset:composition presetName:AVAssetExportPresetHighestQuality];
-    NSURL *outputURL = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:[NSString stringWithFormat:@"live_%@.mov", [[NSUUID UUID] UUIDString]]]];
+    // 配置HEVC导出
+    AVAssetExportSession *exportSession = [AVAssetExportSession exportSessionWithAsset:composition
+                                                                           presetName:AVAssetExportPresetHEVC1920x1080];
+    NSURL *outputURL = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:
+                                            [NSString stringWithFormat:@"live_%@.mov", [[NSUUID UUID] UUIDString]]]];
+    
+    // iOS 15视频方向处理
+    if (@available(iOS 15.0, *)) {
+        AVMutableVideoComposition *videoComposition = [AVMutableVideoComposition videoCompositionWithAsset:composition
+                                                                                     applyingCIFiltersWithHandler:nil];
+        exportSession.videoComposition = videoComposition;
+    }
     
     exportSession.outputURL = outputURL;
-    exportSession.outputFileType = AVFileTypeQuickTimeMovie;
+    exportSession.outputFileType = AVFileTypeHEIC;
     exportSession.metadata = @[contentID, stillTime];
     
     // 同步导出
