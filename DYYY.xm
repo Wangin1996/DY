@@ -1365,23 +1365,23 @@ static void showToast(NSString *message, BOOL isError);
     NSArray *originalArray = %orig;
     BOOL enableDownload = [[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYlongpressdownload"];
     if (!enableDownload) return originalArray;
-    
+
     AWELongPressPanelViewGroupModel *newGroup = [[%c(AWELongPressPanelViewGroupModel) alloc] init];
     newGroup.groupType = 0;
-    
+
     AWELongPressPanelBaseViewModel *tempModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
     AWEAwemeModel *aweme = tempModel.awemeModel;
     if (!aweme) {
         NSLog(@"aweme 模型为空");
         return originalArray;
     }
-    
+
     NSMutableArray *customActions = [NSMutableArray array];
-    
+
     // 处理媒体类型
     if (aweme.awemeType == 68) { // 图集类型
         AWEImageAlbumImageModel *currentImage = aweme.albumImages.count == 1 ? aweme.albumImages.firstObject : aweme.albumImages[aweme.currentImageIndex - 1];
-        
+
         // 当前图片处理
         if (currentImage) {
             if(currentImage.clipVideo){
@@ -1450,7 +1450,7 @@ static void showToast(NSString *message, BOOL isError);
             }
         }];
     }
-    
+
     // 音频下载
     if (aweme.music.playURL.originURLList.count > 0) {
         [customActions addObject:@{
@@ -1463,7 +1463,7 @@ static void showToast(NSString *message, BOOL isError);
             }
         }];
     }
-    
+
     // 构建视图模型
     NSMutableArray *viewModels = [NSMutableArray array];
     [customActions enumerateObjectsUsingBlock:^(NSDictionary *action, NSUInteger idx, BOOL *stop) {
@@ -1476,7 +1476,7 @@ static void showToast(NSString *message, BOOL isError);
         vm.action = action[@"action"];
         [viewModels addObject:vm];
     }];
-    
+
     newGroup.groupArr = viewModels;
     return [@[newGroup] arrayByAddingObjectsFromArray:originalArray ?: @[]];
 }
@@ -1564,17 +1564,10 @@ static void saveMedia(NSArray<NSURL *> *mediaURLs, MediaType mediaType) {
                         if (info[PHLivePhotoInfoErrorKey]) {
                             NSLog(@"创建Live Photo失败: %@", info[PHLivePhotoInfoErrorKey]);
                         } else {
-                            // 获取PHLivePhoto的资源
-                            PHLivePhotoResource *photoResource = [PHLivePhotoResource photoResourceForLivePhoto:livePhoto];
-                            PHLivePhotoResource *videoResource = [PHLivePhotoResource videoResourceForLivePhoto:livePhoto];
-                            // 获取资源文件URL
-                            NSURL *photoURL = [PHLivePhoto resourceFileURLWithResource:photoResource];
-                            NSURL *videoURL = [PHLivePhoto resourceFileURLWithResource:videoResource];
-
                             [[PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
                                 PHAssetCreationRequest *request = [PHAssetCreationRequest creationRequestForAsset];
-                                [request addResourceWithType:PHAssetResourceTypePhoto fileURL:photoURL options:nil];
-                                [request addResourceWithType:PHAssetResourceTypeVideo fileURL:videoURL options:nil];
+                                [request addResourceWithType:PHAssetResourceTypePhoto fileURL:processedImageURL options:nil];
+                                [request addResourceWithType:PHAssetResourceTypeVideo fileURL:processedVideoURL options:nil];
                             } completionHandler:^(BOOL success, NSError * _Nullable error) {
                                 if (success) {
                                     NSLog(@"Live Photo保存成功");
@@ -1614,31 +1607,30 @@ static UIViewController* topViewController() {
 static NSURL* _processLivePhotoVideo(NSURL *videoURL, NSString *identifier) {
     AVAsset *asset = [AVAsset assetWithURL:videoURL];
     AVAssetExportSession *exportSession = [AVAssetExportSession exportSessionWithAsset:asset presetName:AVAssetExportPresetPassthrough];
-    
+
     // 设置输出元数据
     AVMutableMetadataItem *item = [[AVMutableMetadataItem alloc] init];
     item.identifier = @"com.apple.quicktime.content.identifier";
     item.value = identifier;
-    // 使用 kCMMetadataBaseDataType_UTF8 替代 kCMMetadataDataType_UTF8
     item.dataType = (__bridge NSString *)kCMMetadataBaseDataType_UTF8;
-    
+
     NSString *fileName = [NSString stringWithFormat:@"%@.mov", [[NSUUID UUID] UUIDString]];
     NSURL *documentsDirectory = [[NSFileManager defaultManager] URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask].firstObject;
     NSURL *outputURL = [documentsDirectory URLByAppendingPathComponent:fileName];
-    
+
     exportSession.outputFileType = AVFileTypeQuickTimeMovie;
     exportSession.outputURL = outputURL;
     exportSession.metadata = @[item];
-    
+
     __block NSURL *processedURL = nil;
-    [exportSession exportAsynchronouslyWithCompletionHandler:^{
-        if (exportSession.status == AVAssetExportSessionStatusCompleted) {
+    [exportSession exportAsynchronouslyWithCompletionHandler:^(AVAssetExportSessionStatus status, NSError *error) {
+        if (status == AVAssetExportSessionStatusCompleted) {
             processedURL = outputURL;
         } else {
-            NSLog(@"处理视频元数据失败: %@", exportSession.error.localizedDescription);
+            NSLog(@"处理视频元数据失败: %@", error.localizedDescription);
         }
     }];
-    
+
     return processedURL;
 }
 
@@ -1646,24 +1638,24 @@ static NSURL* _processLivePhotoVideo(NSURL *videoURL, NSString *identifier) {
 static NSURL* _injectHEICMetadata(NSURL *imageURL, NSString *identifier) {
     CGImageSourceRef source = CGImageSourceCreateWithURL((CFURLRef)imageURL, NULL);
     NSDictionary *metadata = CFBridgingRelease(CGImageSourceCopyPropertiesAtIndex(source, 0, NULL));
-    
+
     NSString *fileName = [NSString stringWithFormat:@"%@.jpg", [[NSUUID UUID] UUIDString]];
     NSURL *documentsDirectory = [[NSFileManager defaultManager] URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask].firstObject;
     NSURL *outputURL = [documentsDirectory URLByAppendingPathComponent:fileName];
-    
+
     // 创建目标文件
     CGImageDestinationRef destination = CGImageDestinationCreateWithURL((CFURLRef)outputURL, kUTTypeJPEG, 1, NULL);
-    
+
     // 构建新元数据
     NSMutableDictionary *newMetadata = [metadata mutableCopy];
     newMetadata[@"{MakerApple}"] = @{@"17" : identifier}; // 注入Content Identifier
-    
+
     CGImageDestinationAddImageFromSource(destination, source, 0, (CFDictionaryRef)newMetadata);
     BOOL success = CGImageDestinationFinalize(destination);
-    
+
     CFRelease(source);
     CFRelease(destination);
-    
+
     return success ? outputURL : nil;
 }
 
