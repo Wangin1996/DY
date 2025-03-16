@@ -1684,8 +1684,7 @@ static NSURL* _processLivePhotoVideo(NSURL *videoURL, NSString *identifier) {
     return success ? outputURL : nil;
 }
 
-// MARK: - 相册保存（优化版）
-// 完全保持原有函数签名不变
+
 static void saveMedia(NSArray<NSURL *> *files, MediaType mediaType) {
     [PHPhotoLibrary requestAuthorization:^(PHAuthorizationStatus status) {
         if (status != PHAuthorizationStatusAuthorized) {
@@ -1699,6 +1698,20 @@ static void saveMedia(NSArray<NSURL *> *files, MediaType mediaType) {
                 // 提取图片和视频文件
                 NSURL *imageURL = files[0];
                 NSURL *videoURL = files[1];
+                
+                // 检查图片文件扩展名是否为 HEIC
+                NSString *imageExtension = [imageURL.pathExtension lowercaseString];
+                if (![imageExtension isEqualToString:@"heic"]) {
+                    showToast(@"图片格式必须为 HEIC", YES);
+                    return;
+                }
+                
+                // 检查视频文件扩展名是否为 MOV
+                NSString *videoExtension = [videoURL.pathExtension lowercaseString];
+                if (![videoExtension isEqualToString:@"mov"]) {
+                    showToast(@"视频格式必须为 MOV", YES);
+                    return;
+                }
                 
                 // 创建请求
                 PHAssetCreationRequest *request = [PHAssetCreationRequest creationRequestForAsset];
@@ -1733,10 +1746,9 @@ static void saveMedia(NSArray<NSURL *> *files, MediaType mediaType) {
                 if (success) {
                     showToast(@"保存成功", NO);
                 } else {
-                    if (error) {
-                        NSLog(@"保存失败: %@ (Code %@)", error.localizedDescription, error.localizedFailureReason);
-                    }
-                    showToast(@"保存失败，请检查文件格式和权限", YES);
+                    showToast([NSString stringWithFormat:@"保存失败: %@ (Code %@)", 
+                               error.localizedDescription, 
+                               error.localizedFailureReason ], YES);
                 }
             });
         }];
