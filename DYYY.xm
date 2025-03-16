@@ -1564,10 +1564,12 @@ static void saveMedia(NSArray<NSURL *> *mediaURLs, MediaType mediaType) {
                         if (info[PHLivePhotoInfoErrorKey]) {
                             NSLog(@"创建Live Photo失败: %@", info[PHLivePhotoInfoErrorKey]);
                         } else {
+                            // 获取PHLivePhoto的资源
                             PHLivePhotoResource *photoResource = [PHLivePhotoResource photoResourceForLivePhoto:livePhoto];
                             PHLivePhotoResource *videoResource = [PHLivePhotoResource videoResourceForLivePhoto:livePhoto];
-                            NSURL *photoURL = [PHLivePhotoResourceFileURLsManager fileURLForResource:photoResource inLivePhoto:livePhoto];
-                            NSURL *videoURL = [PHLivePhotoResourceFileURLsManager fileURLForResource:videoResource inLivePhoto:livePhoto];
+                            // 获取资源文件URL
+                            NSURL *photoURL = [PHLivePhoto resourceFileURLWithResource:photoResource];
+                            NSURL *videoURL = [PHLivePhoto resourceFileURLWithResource:videoResource];
 
                             [[PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
                                 PHAssetCreationRequest *request = [PHAssetCreationRequest creationRequestForAsset];
@@ -1617,7 +1619,8 @@ static NSURL* _processLivePhotoVideo(NSURL *videoURL, NSString *identifier) {
     AVMutableMetadataItem *item = [[AVMutableMetadataItem alloc] init];
     item.identifier = @"com.apple.quicktime.content.identifier";
     item.value = identifier;
-    item.dataType = (__bridge NSString *)kCMMetadataDataType_UTF8;
+    // 使用 kCMMetadataBaseDataType_UTF8 替代 kCMMetadataDataType_UTF8
+    item.dataType = (__bridge NSString *)kCMMetadataBaseDataType_UTF8;
     
     NSString *fileName = [NSString stringWithFormat:@"%@.mov", [[NSUUID UUID] UUIDString]];
     NSURL *documentsDirectory = [[NSFileManager defaultManager] URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask].firstObject;
