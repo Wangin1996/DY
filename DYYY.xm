@@ -1339,7 +1339,6 @@ static UIViewController *topView(void) {
 #import <Photos/Photos.h>
 #import <ImageIO/ImageIO.h>
 #import <MobileCoreServices/MobileCoreServices.h>
-#import <CoreMedia/CoreMedia.h>
 
 // MARK: - 类型定义
 typedef NS_ENUM(NSUInteger, MediaType) {
@@ -1357,6 +1356,7 @@ static UIViewController* topViewController();
 static NSURL* _processLivePhotoVideo(NSURL *videoURL, NSString *identifier);
 static NSURL* _injectHEICMetadata(NSURL *imageURL, NSString *identifier);
 static void showToast(NSString *message, BOOL isError);
+static void saveLivePhotoToLibrary(PHLivePhoto *livePhoto, void (^completion)(BOOL success, NSError * _Nullable error));
 
 // MARK: - Hook实现
 %hook AWELongPressPanelTableViewController
@@ -1365,23 +1365,19 @@ static void showToast(NSString *message, BOOL isError);
     NSArray *originalArray = %orig;
     BOOL enableDownload = [[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYlongpressdownload"];
     if (!enableDownload) return originalArray;
-
+    
     AWELongPressPanelViewGroupModel *newGroup = [[%c(AWELongPressPanelViewGroupModel) alloc] init];
     newGroup.groupType = 0;
-
+    
     AWELongPressPanelBaseViewModel *tempModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
     AWEAwemeModel *aweme = tempModel.awemeModel;
-    if (!aweme) {
-        NSLog(@"aweme 模型为空");
-        return originalArray;
-    }
-
+    
     NSMutableArray *customActions = [NSMutableArray array];
-
+    
     // 处理媒体类型
     if (aweme.awemeType == 68) { // 图集类型
         AWEImageAlbumImageModel *currentImage = aweme.albumImages.count == 1 ? aweme.albumImages.firstObject : aweme.albumImages[aweme.currentImageIndex - 1];
-
+        
         // 当前图片处理
         if (currentImage) {
             if(currentImage.clipVideo){
@@ -1420,21 +1416,21 @@ static void showToast(NSString *message, BOOL isError);
                     }
                 }];
             }
-            // 下载全部图片
-            [customActions addObject:@{
-                @"title": @"下载全部图片",
-                @"type": @(MediaTypeImage),
-                @"icon": @"ic_star_outlined_12",
-                @"action": ^{
-                    NSMutableArray *urls = [NSMutableArray array];
-                    for (AWEImageAlbumImageModel *image in aweme.albumImages) {
-                        if (image.urlList.count > 0) {
-                            [urls addObject:[NSURL URLWithString:image.urlList.firstObject]];
-                        }
+        // 下载全部图片
+        [customActions addObject:@{
+            @"title": @"下载全部图片",
+            @"type": @(MediaTypeImage),
+            @"icon": @"ic_star_outlined_12",
+            @"action": ^{
+                NSMutableArray *urls = [NSMutableArray array];
+                for (AWEImageAlbumImageModel *image in aweme.albumImages) {
+                    if (image.urlList.count > 0) {
+                        [urls addObject:[NSURL URLWithString:image.urlList.firstObject]];
                     }
-                    downloadMedia(urls, MediaTypeImage);
                 }
-            }];
+                downloadMedia(urls, MediaTypeImage);
+            }
+        }];
         }
     } 
     else { // 视频类型
@@ -1450,7 +1446,7 @@ static void showToast(NSString *message, BOOL isError);
             }
         }];
     }
-
+    
     // 音频下载
     if (aweme.music.playURL.originURLList.count > 0) {
         [customActions addObject:@{
@@ -1463,219 +1459,344 @@ static void showToast(NSString *message, BOOL isError);
             }
         }];
     }
-
-    // ... existing code ...
-
-// 构建视图模型
-NSMutableArray *viewModels = [NSMutableArray array];
-[customActions enumerateObjectsUsingBlock:^(NSDictionary *action, NSUInteger idx, BOOL *stop) {
-    AWELongPressPanelBaseViewModel *vm = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
-    vm.describeString = action[@"title"];
-    vm.enterMethod = DYYY;
-    vm.actionType = 100 + idx;
-    vm.showIfNeed = YES;
-    vm.duxIconName = action[@"icon"];
-    // 确保闭包类型匹配
-    vm.action = ^{
-        void (^originalAction)() = action[@"action"];
-        if (originalAction) {
-            originalAction();
-        }
-    };
-    [viewModels addObject:vm];
-}];
-
-// ... existing code ...
-
+    
+    // 构建视图模型
+    NSMutableArray *viewModels = [NSMutableArray array];
+    [customActions enumerateObjectsUsingBlock:^(NSDictionary *action, NSUInteger idx, BOOL *stop) {
+        AWELongPressPanelBaseViewModel *vm = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
+        vm.describeString = action[@"title"];
+        vm.enterMethod = DYYY;
+        vm.actionType = 100 + idx;
+        vm.showIfNeed = YES;
+        vm.duxIconName = action[@"icon"];
+        vm.action = action[@"action"];
+        [viewModels addObject:vm];
+    }];
+    
     newGroup.groupArr = viewModels;
     return [@[newGroup] arrayByAddingObjectsFromArray:originalArray ?: @[]];
 }
 %end
 
-// 实现下载媒体文件的函数
-static void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
-    NSURLSession *session = [NSURLSession sharedSession];
-    NSMutableArray<NSURL *> *downloadedURLs = [NSMutableArray array];
-    dispatch_group_t group = dispatch_group_create();
 
+// MARK: - MIME 类型转文件扩展名
+static NSString* mimeTypeToExtension(NSString *mimeType, MediaType mediaType) {
+    if (@available(iOS 14.0, *)) {
+        UTType *type = [UTType typeWithMIMEType:mimeType];
+        return type.preferredFilenameExtension ?: @"tmp";
+    } else {
+        CFStringRef uti = UTTypeCreatePreferredIdentifierForTag(kUTTagClassMIMEType, (__bridge CFStringRef)mimeType, NULL);
+        CFStringRef extension = UTTypeCopyPreferredTagWithClass(uti, kUTTagClassFilenameExtension);
+        CFRelease(uti);
+        
+        if (!extension) {
+            switch (mediaType) {
+                case MediaTypeVideo: return @"mp4";
+                case MediaTypeImage: return @"heic";
+                case MediaTypeAudio: return @"mp3";
+                case MediaTypeLivePhoto: return @"mov";
+                default: return @"tmp";
+            }
+        }
+        return (__bridge_transfer NSString *)extension;
+    }
+}
+
+// MARK: - 下载核心逻辑
+static void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
+    dispatch_group_t group = dispatch_group_create();
+    NSMutableArray<NSURL *> *tempFiles = [NSMutableArray array];
+    __block BOOL hasError = NO;
+    NSString *assetIdentifier = [[NSUUID UUID] UUIDString]; // 统一标识符
+    
     for (NSURL *url in urls) {
         dispatch_group_enter(group);
-        NSURLSessionDownloadTask *task = [session downloadTaskWithURL:url completionHandler:^(NSURL *location, NSURLResponse *response, NSError *error) {
-            if (error) {
-                NSLog(@"下载失败: %@", error.localizedDescription);
-                dispatch_group_leave(group);
-                return;
-            }
-
-            NSString *mimeType = [response MIMEType];
-            NSString *extension = mimeTypeToExtension(mimeType, mediaType);
-            NSString *fileName = [NSString stringWithFormat:@"%@.%@", [[NSUUID UUID] UUIDString], extension];
-            NSURL *documentsDirectory = [[NSFileManager defaultManager] URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask].firstObject;
-            NSURL *destinationURL = [documentsDirectory URLByAppendingPathComponent:fileName];
-
-            NSError *moveError;
-            if ([[NSFileManager defaultManager] moveItemAtURL:location toURL:destinationURL error:&moveError]) {
-                [downloadedURLs addObject:destinationURL];
+        
+        NSURLSessionDownloadTask *task = [[NSURLSession sharedSession] downloadTaskWithURL:url completionHandler:^(NSURL *location, NSURLResponse *response, NSError *error) {
+            if (!error && location) {
+                NSString *extension = mimeTypeToExtension(response.MIMEType, mediaType);
+                NSURL *processedURL = location;
+                
+                // Live Photo 元数据处理
+                if (mediaType == MediaTypeLivePhoto) {
+                    if ([extension isEqualToString:@"jpg"] || [extension isEqualToString:@"jpeg"]) {
+                        NSURL *heicURL = _injectHEICMetadata(location, assetIdentifier);
+                        if (heicURL) {
+                            processedURL = heicURL;
+                            extension = @"heic";
+                        } else {
+                            hasError = YES;
+                        }
+                    } else if ([extension isEqualToString:@"mov"]) {
+                        NSURL *newVideoURL = _processLivePhotoVideo(location, assetIdentifier);
+                        if (newVideoURL) {
+                            processedURL = newVideoURL;
+                        } else {
+                            hasError = YES;
+                        }
+                    }
+                }
+                
+                // 移动至临时目录
+                NSURL *tempDir = [NSURL fileURLWithPath:NSTemporaryDirectory()];
+                NSURL *destURL = [tempDir URLByAppendingPathComponent:[NSString stringWithFormat:@"%@.%@", [[NSUUID UUID] UUIDString], extension]];
+                
+                NSError *fileError;
+                if ([[NSFileManager defaultManager] moveItemAtURL:processedURL toURL:destURL error:&fileError]) {
+                    @synchronized(tempFiles) {
+                        [tempFiles addObject:destURL];
+                    }
+                } else {
+                    showToast(@"文件移动失败", YES);
+                    hasError = YES;
+                }
             } else {
-                NSLog(@"移动文件失败: %@", moveError.localizedDescription);
+                hasError = YES;
             }
-
             dispatch_group_leave(group);
         }];
         [task resume];
     }
-
+    
     dispatch_group_notify(group, dispatch_get_main_queue(), ^{
-        if (downloadedURLs.count > 0) {
-            saveMedia(downloadedURLs, mediaType);
+        if (hasError || tempFiles.count == 0) {
+            showToast(@"下载失败", YES);
+            return;
+        }
+        
+        if (mediaType == MediaTypeAudio) {
+            UIActivityViewController *activityVC = [[UIActivityViewController alloc] initWithActivityItems:tempFiles applicationActivities:nil];
+            [activityVC setCompletionWithItemsHandler:^(UIActivityType activityType, BOOL completed, NSArray *returnedItems, NSError *error) {
+                [tempFiles enumerateObjectsUsingBlock:^(NSURL *url, NSUInteger idx, BOOL *stop) {
+                    [[NSFileManager defaultManager] removeItemAtURL:url error:nil];
+                }];
+            }];
+            [topViewController() presentViewController:activityVC animated:YES completion:nil];
+        } else {
+            saveMedia(tempFiles, mediaType);
         }
     });
 }
-// 实现保存媒体文件的函数
-static void saveMedia(NSArray<NSURL *> *mediaURLs, MediaType mediaType) {
-    switch (mediaType) {
-        case MediaTypeImage: {
-            for (NSURL *imageURL in mediaURLs) {
-                UIImage *image = [UIImage imageWithContentsOfFile:imageURL.path];
-                if (image) {
-                    UIImageWriteToSavedPhotosAlbum(image, nil, nil, nil);
-                }
-            }
-            break;
-        }
-        case MediaTypeVideo: {
-            for (NSURL *videoURL in mediaURLs) {
-                UISaveVideoAtPathToSavedPhotosAlbum(videoURL.path, nil, nil, nil);
-            }
-            break;
-        }
-        case MediaTypeAudio: {
-            // 保存音频到相册可能需要额外的权限和处理，这里简单打印日志
-            for (NSURL *audioURL in mediaURLs) {
-                NSLog(@"音频保存路径: %@", audioURL.path);
-            }
-            break;
-        }
-        case MediaTypeLivePhoto: {
-            if (mediaURLs.count == 2) {
-                NSURL *imageURL = mediaURLs[0];
-                NSURL *videoURL = mediaURLs[1];
-                NSString *identifier = [[NSUUID UUID] UUIDString];
-                NSURL *processedVideoURL = _processLivePhotoVideo(videoURL, identifier);
-                NSURL *processedImageURL = _injectHEICMetadata(imageURL, identifier);
 
-                if (processedVideoURL && processedImageURL) {
-                    [PHLivePhoto requestLivePhotoWithResourceFileURLs:@[processedImageURL, processedVideoURL]
-                                                        placeholderImage:nil
-                                                              targetSize:CGSizeZero
-                                                             contentMode:PHImageContentModeAspectFit
-                                                                resultHandler:^(PHLivePhoto *livePhoto, NSDictionary *info) {
-                        if (info[PHLivePhotoInfoErrorKey]) {
-                            NSLog(@"创建Live Photo失败: %@", info[PHLivePhotoInfoErrorKey]);
-                        } else {
-                            [[PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
-                                PHAssetCreationRequest *request = [PHAssetCreationRequest creationRequestForAsset];
-                                [request addResourceWithType:PHAssetResourceTypePhoto fileURL:processedImageURL options:nil];
-                                [request addResourceWithType:PHAssetResourceTypeVideo fileURL:processedVideoURL options:nil];
-                            } completionHandler:^(BOOL success, NSError * _Nullable error) {
-                                if (success) {
-                                    NSLog(@"Live Photo保存成功");
-                                } else {
-                                    NSLog(@"Live Photo保存失败: %@", error.localizedDescription);
-                                }
-                            }];
-                        }
-                    }];
-                }
-            }
-            break;
+// MARK: - HEIC 元数据注入（修正版）
+static NSURL* _injectHEICMetadata(NSURL *imageURL, NSString *identifier) {
+    CGImageSourceRef source = CGImageSourceCreateWithURL((__bridge CFURLRef)imageURL, NULL);
+    if (!source) return nil;
+    
+    // 提前声明变量
+    NSURL *heicURL = nil;
+    CGImageDestinationRef destination = NULL;
+    
+    @try {
+        // 创建目标路径
+        heicURL = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.heic", [[NSUUID UUID] UUIDString]]]];
+        
+        // 创建目标写入器
+        CFStringRef heicUTI = CFSTR("public.heic");
+        destination = CGImageDestinationCreateWithURL((__bridge CFURLRef)heicURL, heicUTI, 1, NULL);
+        if (!destination) {
+            NSLog(@"Failed to create image destination");
+            return nil;
+        }
+        
+        // 元数据构造
+        NSMutableDictionary *metadata = [NSMutableDictionary dictionary];
+        NSDictionary *makerAppleDict = @{
+            @"ContentIdentifier" : identifier,
+            @"AssetIdentifier" : identifier
+        };
+        metadata[(__bridge NSString*)kCGImagePropertyMakerAppleDictionary] = makerAppleDict;
+        
+        // 保留原始元数据
+        NSDictionary *sourceMetadata = (__bridge NSDictionary *)CGImageSourceCopyPropertiesAtIndex(source, 0, NULL);
+        if (sourceMetadata) {
+            [metadata addEntriesFromDictionary:sourceMetadata];
+        }
+        
+        // 写入文件
+        CGImageDestinationAddImageFromSource(destination, source, 0, (__bridge CFDictionaryRef)metadata);
+        if (!CGImageDestinationFinalize(destination)) {
+            NSLog(@"Failed to finalize image destination");
+            return nil;
         }
     }
-}
-
-// 实现根据MIME类型获取文件扩展名的函数
-static NSString* mimeTypeToExtension(NSString *mimeType, MediaType mediaType) {
-    CFStringRef uti = UTTypeCreatePreferredIdentifierForTag(kUTTagClassMIMEType, (__bridge CFStringRef)mimeType, NULL);
-    CFStringRef extension = UTTypeCopyPreferredTagWithClass(uti, kUTTagClassFilenameExtension);
-    NSString *result = (__bridge_transfer NSString *)extension;
-    CFRelease(uti);
-    return result ?: @"unknown";
-}
-
-// 实现获取顶部视图控制器的函数
-static UIViewController* topViewController() {
-    UIViewController *rootViewController = UIApplication.sharedApplication.keyWindow.rootViewController;
-    UIViewController *topVC = rootViewController;
-    while (topVC.presentedViewController) {
-        topVC = topVC.presentedViewController;
+    @finally {
+        // 释放资源
+        if (source) CFRelease(source);
+        if (destination) CFRelease(destination);
     }
-    return topVC;
+    
+    return heicURL;
 }
 
-// 实现处理Live Photo视频的函数
+// MARK: - LivePhoto 视频处理（修正版）
 static NSURL* _processLivePhotoVideo(NSURL *videoURL, NSString *identifier) {
     AVAsset *asset = [AVAsset assetWithURL:videoURL];
+    if (!asset) return nil;
+    
+    // 创建元数据
+    AVMutableMetadataItem *contentID = [[AVMutableMetadataItem alloc] init];
+    contentID.keySpace = AVMetadataKeySpaceQuickTimeMetadata;
+    contentID.key = @"com.apple.quicktime.content.identifier";
+    contentID.value = identifier;
+    contentID.dataType = (__bridge NSString*)kCMMetadataBaseDataType_UTF8;
+    
+    AVMutableMetadataItem *stillTime = [[AVMutableMetadataItem alloc] init];
+    stillTime.keySpace = AVMetadataKeySpaceQuickTimeMetadata;
+    stillTime.key = @"com.apple.quicktime.still-image-time";
+    stillTime.value = @(0);
+    stillTime.dataType = (__bridge NSString*)kCMMetadataBaseDataType_SInt32; // 必须为32位
+    
+    // 导出配置
     AVAssetExportSession *exportSession = [AVAssetExportSession exportSessionWithAsset:asset presetName:AVAssetExportPresetPassthrough];
-
-    // 设置输出元数据
-    AVMutableMetadataItem *item = [[AVMutableMetadataItem alloc] init];
-    item.identifier = @"com.apple.quicktime.content.identifier";
-    item.value = identifier;
-    item.dataType = (__bridge NSString *)kCMMetadataBaseDataType_UTF8;
-
-    NSString *fileName = [NSString stringWithFormat:@"%@.mov", [[NSUUID UUID] UUIDString]];
-    NSURL *documentsDirectory = [[NSFileManager defaultManager] URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask].firstObject;
-    NSURL *outputURL = [documentsDirectory URLByAppendingPathComponent:fileName];
-
-    exportSession.outputFileType = AVFileTypeQuickTimeMovie;
+    NSURL *outputURL = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:[NSString stringWithFormat:@"livephoto_%@.mov", [[NSUUID UUID] UUIDString]]]];
+    
     exportSession.outputURL = outputURL;
-    exportSession.metadata = @[item];
-
-    __block NSURL *processedURL = nil;
-    dispatch_semaphore_t semaphore = dispatch_semaphore_create(0);
-
-    [exportSession exportAsynchronouslyWithCompletionHandler:^(AVAssetExportSessionStatus status, NSError *error) {
-        if (status == AVAssetExportSessionStatusCompleted) {
-            processedURL = outputURL;
-        } else {
-            NSLog(@"处理视频元数据失败: %@", error.localizedDescription);
-        }
-        dispatch_semaphore_signal(semaphore);
+    exportSession.outputFileType = AVFileTypeQuickTimeMovie;
+    exportSession.metadata = @[contentID, stillTime];
+    
+    // 强制视频轨道处理
+    NSArray *videoTracks = [asset tracksWithMediaType:AVMediaTypeVideo];
+    if (videoTracks.count > 0) {
+        AVAssetTrack *videoTrack = videoTracks[0];
+        exportSession.timeRange = CMTimeRangeMake(kCMTimeZero, videoTrack.timeRange.duration);
+    }
+    
+    // 同步导出
+    dispatch_semaphore_t sema = dispatch_semaphore_create(0);
+    __block BOOL success = NO;
+    [exportSession exportAsynchronouslyWithCompletionHandler:^{
+        success = (exportSession.status == AVAssetExportSessionStatusCompleted);
+        dispatch_semaphore_signal(sema);
     }];
-
-    dispatch_semaphore_wait(semaphore, DISPATCH_TIME_FOREVER);
-    return processedURL;
-}
-
-// 实现注入HEIC元数据的函数
-static NSURL* _injectHEICMetadata(NSURL *imageURL, NSString *identifier) {
-    CGImageSourceRef source = CGImageSourceCreateWithURL((CFURLRef)imageURL, NULL);
-    NSDictionary *metadata = CFBridgingRelease(CGImageSourceCopyPropertiesAtIndex(source, 0, NULL));
-
-    NSString *fileName = [NSString stringWithFormat:@"%@.jpg", [[NSUUID UUID] UUIDString]];
-    NSURL *documentsDirectory = [[NSFileManager defaultManager] URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask].firstObject;
-    NSURL *outputURL = [documentsDirectory URLByAppendingPathComponent:fileName];
-
-    // 创建目标文件
-    CGImageDestinationRef destination = CGImageDestinationCreateWithURL((CFURLRef)outputURL, kUTTypeJPEG, 1, NULL);
-
-    // 构建新元数据
-    NSMutableDictionary *newMetadata = [metadata mutableCopy];
-    newMetadata[@"{MakerApple}"] = @{@"17" : identifier}; // 注入Content Identifier
-
-    CGImageDestinationAddImageFromSource(destination, source, 0, (CFDictionaryRef)newMetadata);
-    BOOL success = CGImageDestinationFinalize(destination);
-
-    CFRelease(source);
-    CFRelease(destination);
-
+    dispatch_semaphore_wait(sema, DISPATCH_TIME_FOREVER);
+    
     return success ? outputURL : nil;
 }
 
-// 实现显示Toast消息的函数
-static void showToast(NSString *message, BOOL isError) {
-    UIViewController *topVC = topViewController();
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:isError ? @"错误" : @"提示" message:message preferredStyle:UIAlertControllerStyleAlert];
-    [alert addAction:[UIAlertAction actionWithTitle:@"确定" style:UIAlertActionStyleDefault handler:nil]];
-    [topVC presentViewController:alert animated:YES completion:nil];
+// MARK: - 相册保存（优化版）
+// 完全保持原有函数签名不变
+static void saveMedia(NSArray<NSURL *> *files, MediaType mediaType) {
+    [PHPhotoLibrary requestAuthorization:^(PHAuthorizationStatus status) {
+        if (status != PHAuthorizationStatusAuthorized) {
+            showToast(@"需要相册访问权限", YES);
+            return;
+        }
+        
+        [[PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
+            // 新增 Live Photo 处理分支
+            if (mediaType == MediaTypeLivePhoto && files.count >= 2) {
+                // 提取图片和视频文件
+                NSURL *imageURL = files[0];
+                NSURL *videoURL = files[1];
+                
+                // 创建请求
+                PHAssetCreationRequest *request = [PHAssetCreationRequest creationRequestForAsset];
+                
+                // 添加图片资源 (强制指定 HEIC 类型)
+                PHAssetResourceCreationOptions *photoOptions = [PHAssetResourceCreationOptions new];
+                photoOptions.uniformTypeIdentifier = @"public.heic";
+                [request addResourceWithType:PHAssetResourceTypePhoto fileURL:imageURL options:photoOptions];
+                
+                // 添加视频资源 (强制指定 MOV 类型)
+                PHAssetResourceCreationOptions *videoOptions = [PHAssetResourceCreationOptions new];
+                videoOptions.uniformTypeIdentifier = @"com.apple.quicktime-movie";
+                [request addResourceWithType:PHAssetResourceTypePairedVideo fileURL:videoURL options:videoOptions];
+                
+                // 合成 Live Photo
+                [PHLivePhoto requestLivePhotoWithResourceFileURLs:@[imageURL, videoURL]
+                                                    placeholderImage:nil
+                                                          targetSize:CGSizeZero
+                                                         contentMode:PHImageContentModeAspectFit
+                                                            resultHandler:^(PHLivePhoto * _Nullable livePhoto, NSDictionary * _Nonnull info) {
+                    NSError *livePhotoError = info[PHLivePhotoInfoErrorKey];
+                    if (livePhotoError) {
+                        showToast([NSString stringWithFormat:@"Live Photo 合成失败: %@", livePhotoError.localizedDescription], YES);
+                    } else {
+                        // 保存 Live Photo 到相册
+                        saveLivePhotoToLibrary(livePhoto, ^(BOOL success, NSError * _Nullable error) {
+                            if (success) {
+                                showToast(@"Live Photo 保存成功", NO);
+                            } else {
+                                showToast([NSString stringWithFormat:@"Live Photo 保存失败: %@", error.localizedDescription], YES);
+                            }
+                        });
+                    }
+                }];
+                
+            } else {
+                // 原有其他媒体类型的处理逻辑保持不变
+                for (NSURL *url in files) {
+                    if (mediaType == MediaTypeVideo) {
+                        [PHAssetChangeRequest creationRequestForAssetFromVideoAtFileURL:url];
+                    } else {
+                        [PHAssetChangeRequest creationRequestForAssetFromImageAtFileURL:url];
+                    }
+                }
+            }
+        } completionHandler:^(BOOL success, NSError *error) {
+            // 清理临时文件
+            [files enumerateObjectsUsingBlock:^(NSURL *url, NSUInteger idx, BOOL *stop) {
+                [[NSFileManager defaultManager] removeItemAtURL:url error:nil];
+            }];
+            
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if (success) {
+                    showToast(@"保存成功", NO);
+                } else {
+                    showToast([NSString stringWithFormat:@"保存失败: %@ (Code %@)", 
+                             error.localizedDescription, 
+                             error.localizedFailureReason ], YES);
+                }
+            });
+        }];
+    }];
+}
+
+// 新增：保存 Live Photo 到相册的方法
+static void saveLivePhotoToLibrary(PHLivePhoto *livePhoto, void (^completion)(BOOL success, NSError * _Nullable error)) {
+    [[PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
+        PHAssetCreationRequest *request = [PHAssetCreationRequest creationRequestForAsset];
+        [request addResourceWithType:PHAssetResourceTypePhoto 
+                             fileURL:livePhoto.photoURL 
+                             options:nil];
+        [request addResourceWithType:PHAssetResourceTypeVideo 
+                             fileURL:livePhoto.videoURL 
+                             options:nil];
+    } completionHandler:^(BOOL success, NSError * _Nullable error) {
+        completion(success, error);
+    }];
+}
+
+// MARK: - 辅助方法
+static UIViewController* topViewController() {
+    UIViewController *rootVC = [UIApplication sharedApplication].keyWindow.rootViewController;
+    while (rootVC.presentedViewController) {
+        rootVC = rootVC.presentedViewController;
+    }
+    return rootVC;
+}
+
+
+CGPoint topCenter = CGPointMake(
+    CGRectGetMidX([UIScreen mainScreen].bounds),
+    CGRectGetMinY([UIScreen mainScreen].bounds) + 90
+);
+
+void showToast(NSString *text, BOOL isError) {
+    // 触觉反馈
+    if (@available(iOS 10.0, *)) {
+        UIImpactFeedbackStyle style = isError ? UIImpactFeedbackStyleHeavy : UIImpactFeedbackStyleMedium;
+        UIImpactFeedbackGenerator *generator = [[UIImpactFeedbackGenerator alloc] initWithStyle:style];
+        [generator prepare];
+        [generator impactOccurred];
+    }
+    
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [%c(DUXToast) showText:text withCenterPoint:topCenter];
+    });
+}
+
+%ctor {
+    %init(AWELongPressPanelTableViewController = objc_getClass("AWELongPressPanelTableViewController"));
 }
