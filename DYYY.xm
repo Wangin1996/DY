@@ -1531,7 +1531,6 @@ static void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
         }
     });
 }
-
 // 实现保存媒体文件的函数
 static void saveMedia(NSArray<NSURL *> *mediaURLs, MediaType mediaType) {
     switch (mediaType) {
