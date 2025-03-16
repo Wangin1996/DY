@@ -1524,15 +1524,12 @@ typedef void (^LivePhotoCompletionHandler)(BOOL success, NSError *_Nullable erro
                     completion:(LivePhotoCompletionHandler)completion {
     [[PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
         PHAssetCreationRequest *request = [PHAssetCreationRequest creationRequestForAsset];
-        NSArray<NSURL *> *resourceFileURLs = livePhoto.resourceFileURLs;
-        if (resourceFileURLs.count >= 2) {
-            NSURL *photoURL = resourceFileURLs[0];
-            NSURL *videoURL = resourceFileURLs[1];
+        if (livePhoto.photoURL && livePhoto.videoURL) {
             [request addResourceWithType:PHAssetResourceTypePhoto 
-                                 fileURL:photoURL 
+                                 fileURL:livePhoto.photoURL 
                                  options:nil];
             [request addResourceWithType:PHAssetResourceTypeVideo 
-                                 fileURL:videoURL 
+                                 fileURL:livePhoto.videoURL 
                                  options:nil];
         }
     } completionHandler:^(BOOL success, NSError * _Nullable error) {
