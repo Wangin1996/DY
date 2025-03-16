@@ -1623,14 +1623,18 @@ static NSURL* _processLivePhotoVideo(NSURL *videoURL, NSString *identifier) {
     exportSession.metadata = @[item];
 
     __block NSURL *processedURL = nil;
+    dispatch_semaphore_t semaphore = dispatch_semaphore_create(0);
+
     [exportSession exportAsynchronouslyWithCompletionHandler:^(AVAssetExportSessionStatus status, NSError *error) {
         if (status == AVAssetExportSessionStatusCompleted) {
             processedURL = outputURL;
         } else {
             NSLog(@"处理视频元数据失败: %@", error.localizedDescription);
         }
+        dispatch_semaphore_signal(semaphore);
     }];
 
+    dispatch_semaphore_wait(semaphore, DISPATCH_TIME_FOREVER);
     return processedURL;
 }
 
