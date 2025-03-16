@@ -1339,6 +1339,7 @@ static UIViewController *topView(void) {
 #import <Photos/Photos.h>
 #import <ImageIO/ImageIO.h>
 #import <MobileCoreServices/MobileCoreServices.h>
+#import <CoreMedia/CoreMedia.h>
 
 // MARK: - 类型定义
 typedef NS_ENUM(NSUInteger, MediaType) {
@@ -1419,21 +1420,21 @@ static void showToast(NSString *message, BOOL isError);
                     }
                 }];
             }
-        // 下载全部图片
-        [customActions addObject:@{
-            @"title": @"下载全部图片",
-            @"type": @(MediaTypeImage),
-            @"icon": @"ic_star_outlined_12",
-            @"action": ^{
-                NSMutableArray *urls = [NSMutableArray array];
-                for (AWEImageAlbumImageModel *image in aweme.albumImages) {
-                    if (image.urlList.count > 0) {
-                        [urls addObject:[NSURL URLWithString:image.urlList.firstObject]];
+            // 下载全部图片
+            [customActions addObject:@{
+                @"title": @"下载全部图片",
+                @"type": @(MediaTypeImage),
+                @"icon": @"ic_star_outlined_12",
+                @"action": ^{
+                    NSMutableArray *urls = [NSMutableArray array];
+                    for (AWEImageAlbumImageModel *image in aweme.albumImages) {
+                        if (image.urlList.count > 0) {
+                            [urls addObject:[NSURL URLWithString:image.urlList.firstObject]];
+                        }
                     }
+                    downloadMedia(urls, MediaTypeImage);
                 }
-                downloadMedia(urls, MediaTypeImage);
-            }
-        }];
+            }];
         }
     } 
     else { // 视频类型
@@ -1563,10 +1564,15 @@ static void saveMedia(NSArray<NSURL *> *mediaURLs, MediaType mediaType) {
                         if (info[PHLivePhotoInfoErrorKey]) {
                             NSLog(@"创建Live Photo失败: %@", info[PHLivePhotoInfoErrorKey]);
                         } else {
+                            PHLivePhotoResource *photoResource = [PHLivePhotoResource photoResourceForLivePhoto:livePhoto];
+                            PHLivePhotoResource *videoResource = [PHLivePhotoResource videoResourceForLivePhoto:livePhoto];
+                            NSURL *photoURL = [PHLivePhotoResourceFileURLsManager fileURLForResource:photoResource inLivePhoto:livePhoto];
+                            NSURL *videoURL = [PHLivePhotoResourceFileURLsManager fileURLForResource:videoResource inLivePhoto:livePhoto];
+
                             [[PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
                                 PHAssetCreationRequest *request = [PHAssetCreationRequest creationRequestForAsset];
-                                [request addResourceWithType:PHAssetResourceTypePhoto fileURL:livePhoto.photoURL options:nil];
-                                [request addResourceWithType:PHAssetResourceTypeVideo fileURL:livePhoto.videoURL options:nil];
+                                [request addResourceWithType:PHAssetResourceTypePhoto fileURL:photoURL options:nil];
+                                [request addResourceWithType:PHAssetResourceTypeVideo fileURL:videoURL options:nil];
                             } completionHandler:^(BOOL success, NSError * _Nullable error) {
                                 if (success) {
                                     NSLog(@"Live Photo保存成功");
@@ -1608,9 +1614,10 @@ static NSURL* _processLivePhotoVideo(NSURL *videoURL, NSString *identifier) {
     AVAssetExportSession *exportSession = [AVAssetExportSession exportSessionWithAsset:asset presetName:AVAssetExportPresetPassthrough];
     
     // 设置输出元数据
-    AVMutableMetadataItem *item = [AVMutableMetadataItem metadataItemWithIdentifier:@"com.apple.quicktime.content.identifier"
-                                                                              value:identifier];
-    item.dataType = (NSString *)kCMMetadataDataType_UTF8;
+    AVMutableMetadataItem *item = [[AVMutableMetadataItem alloc] init];
+    item.identifier = @"com.apple.quicktime.content.identifier";
+    item.value = identifier;
+    item.dataType = (__bridge NSString *)kCMMetadataDataType_UTF8;
     
     NSString *fileName = [NSString stringWithFormat:@"%@.mov", [[NSUUID UUID] UUIDString]];
     NSURL *documentsDirectory = [[NSFileManager defaultManager] URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask].firstObject;
@@ -1635,7 +1642,7 @@ static NSURL* _processLivePhotoVideo(NSURL *videoURL, NSString *identifier) {
 // 实现注入HEIC元数据的函数
 static NSURL* _injectHEICMetadata(NSURL *imageURL, NSString *identifier) {
     CGImageSourceRef source = CGImageSourceCreateWithURL((CFURLRef)imageURL, NULL);
-    NSDictionary *metadata = (NSDictionary *)CGImageSourceCopyPropertiesAtIndex(source, 0, NULL);
+    NSDictionary *metadata = CFBridgingRelease(CGImageSourceCopyPropertiesAtIndex(source, 0, NULL));
     
     NSString *fileName = [NSString stringWithFormat:@"%@.jpg", [[NSUUID UUID] UUIDString]];
     NSURL *documentsDirectory = [[NSFileManager defaultManager] URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask].firstObject;
