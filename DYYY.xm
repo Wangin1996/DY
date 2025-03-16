@@ -1758,39 +1758,48 @@ static void saveLivePhotoToLibrary(PHLivePhoto *livePhoto, void (^completion)(BO
     [[PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
         PHAssetCreationRequest *request = [PHAssetCreationRequest creationRequestForAsset];
 
-        // 获取图片资源
-        NSString *tempPhotoPath = [NSTemporaryDirectory() stringByAppendingPathComponent:@"tempPhoto.heic"];
-        NSURL *tempPhotoURL = [NSURL fileURLWithPath:tempPhotoPath];
-        [PHAssetResourceManager.defaultManager writeDataForAssetResource:livePhoto.photoResource
-                                                         toFileURL:tempPhotoURL
-                                                         options:nil
-                                                         completionHandler:^(BOOL success, NSError * _Nullable error) {
-            if (success) {
-                [request addResourceWithType:PHAssetResourceTypePhoto
-                                     fileURL:tempPhotoURL
-                                     options:nil];
-            } else {
-                completion(NO, error);
+        // 配置请求资源的选项
+        PHLivePhotoRequestOptions *options = [[PHLivePhotoRequestOptions alloc] init];
+        options.deliveryMode = PHLivePhotoDeliveryModeHighQualityFormat;
+
+        [livePhoto requestResourcesWithOptions:options resultHandler:^(NSArray<PHAssetResource *> * _Nonnull photoResources, NSArray<PHAssetResource *> * _Nonnull videoResources, NSError * _Nullable resultError) {
+            if (resultError) {
+                completion(NO, resultError);
                 return;
             }
 
-            // 获取视频资源
-            NSString *tempVideoPath = [NSTemporaryDirectory() stringByAppendingPathComponent:@"tempVideo.mov"];
-            NSURL *tempVideoURL = [NSURL fileURLWithPath:tempVideoPath];
-            [PHAssetResourceManager.defaultManager writeDataForAssetResource:livePhoto.videoResource
-                                                             toFileURL:tempVideoURL
-                                                             options:nil
-                                                             completionHandler:^(BOOL success, NSError * _Nullable error) {
+            if (photoResources.count == 0 || videoResources.count == 0) {
+                completion(NO, [NSError errorWithDomain:@"LivePhotoError" code:-1 userInfo:@{NSLocalizedDescriptionKey: @"未找到图片或视频资源"}]);
+                return;
+            }
+
+            PHAssetResource *photoResource = photoResources.firstObject;
+            PHAssetResource *videoResource = videoResources.firstObject;
+
+            // 获取图片资源
+            NSString *tempPhotoPath = [NSTemporaryDirectory() stringByAppendingPathComponent:@"tempPhoto.heic"];
+            NSURL *tempPhotoURL = [NSURL fileURLWithPath:tempPhotoPath];
+            [[PHAssetResourceManager defaultManager] writeDataForAssetResource:photoResource toFile:tempPhotoURL options:nil completionHandler:^(BOOL success, NSError * _Nullable writeError) {
                 if (success) {
-                    [request addResourceWithType:PHAssetResourceTypePairedVideo
-                                         fileURL:tempVideoURL
-                                         options:nil];
+                    [request addResourceWithType:PHAssetResourceTypePhoto fileURL:tempPhotoURL options:nil];
                 } else {
-                    completion(NO, error);
+                    completion(NO, writeError);
                     return;
                 }
 
-                completion(YES, nil);
+                // 获取视频资源
+                NSString *tempVideoPath = [NSTemporaryDirectory() stringByAppendingPathComponent:@"tempVideo.mov"];
+                NSURL *tempVideoURL = [NSURL fileURLWithPath:tempVideoPath];
+                [[PHAssetResourceManager defaultManager] writeDataForAssetResource:videoResource toFile:tempVideoURL options:nil completionHandler:^(BOOL success, NSError * _Nullable writeError) {
+                    if (success) {
+                        [request addResourceWithType:PHAssetResourceTypePairedVideo fileURL:tempVideoURL options:nil];
+                    } else {
+                        completion(NO, writeError);
+                        return;
+                    }
+
+                    completion(YES, nil);
+                }];
             }];
         }];
     } completionHandler:^(BOOL success, NSError * _Nullable error) {
