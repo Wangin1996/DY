@@ -1356,6 +1356,13 @@ static UIViewController* topViewController();
 static NSURL* _processLivePhotoVideo(NSURL *videoURL, NSString *identifier);
 static NSURL* _injectHEICMetadata(NSURL *imageURL, NSString *identifier);
 static void showToast(NSString *message, BOOL isError);
+static void saveLivePhotoWithImageURL(NSURL *imageURL, NSURL *videoURL);
+
+// MARK: - 元数据键定义（新增）
+static NSString *const kKeyContentIdentifier = @"com.apple.quicktime.content.identifier";
+static NSString *const kKeySpaceQuickTimeMetadata = @"mdta";
+static NSString *const kKeyStillImageTime = @"com.apple.quicktime.still-image-time";
+
 
 // MARK: - Hook实现
 %hook AWELongPressPanelTableViewController
@@ -1599,7 +1606,8 @@ static NSURL* _injectHEICMetadata(NSURL *imageURL, NSString *identifier) {
         heicURL = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:fileName]];
         
         // 创建目标写入器
-        CGImageDestinationRef dest = CGImageDestinationCreateWithURL((__bridge CFURLRef)heicURL, kUTTypeHEIC, 1, NULL);
+	CFStringRef heicUTI = CFSTR("public.heic");
+	CGImageDestinationCreateWithURL((__bridge CFURLRef)heicURL, heicUTI, 1, NULL);
         if (!dest) {
             CFRelease(source);
             return nil;
