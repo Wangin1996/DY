@@ -1464,18 +1464,28 @@ static void showToast(NSString *message, BOOL isError);
         }];
     }
 
-    // 构建视图模型
-    NSMutableArray *viewModels = [NSMutableArray array];
-    [customActions enumerateObjectsUsingBlock:^(NSDictionary *action, NSUInteger idx, BOOL *stop) {
-        AWELongPressPanelBaseViewModel *vm = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
-        vm.describeString = action[@"title"];
-        vm.enterMethod = DYYY;
-        vm.actionType = 100 + idx;
-        vm.showIfNeed = YES;
-        vm.duxIconName = action[@"icon"];
-        vm.action = action[@"action"];
-        [viewModels addObject:vm];
-    }];
+    // ... existing code ...
+
+// 构建视图模型
+NSMutableArray *viewModels = [NSMutableArray array];
+[customActions enumerateObjectsUsingBlock:^(NSDictionary *action, NSUInteger idx, BOOL *stop) {
+    AWELongPressPanelBaseViewModel *vm = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
+    vm.describeString = action[@"title"];
+    vm.enterMethod = DYYY;
+    vm.actionType = 100 + idx;
+    vm.showIfNeed = YES;
+    vm.duxIconName = action[@"icon"];
+    // 确保闭包类型匹配
+    vm.action = ^{
+        void (^originalAction)() = action[@"action"];
+        if (originalAction) {
+            originalAction();
+        }
+    };
+    [viewModels addObject:vm];
+}];
+
+// ... existing code ...
 
     newGroup.groupArr = viewModels;
     return [@[newGroup] arrayByAddingObjectsFromArray:originalArray ?: @[]];
