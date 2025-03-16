@@ -1603,8 +1603,8 @@ static NSURL* _injectHEICMetadata(NSURL *imageURL, NSString *identifier) {
     CGImageDestinationRef dest = NULL; // 显式声明并初始化为 NULL
     @autoreleasepool {
         // 生成唯一文件名
-        NSString *fileName = [NSString stringWithFormat:@"livephoto_%@.heic", [[NSUUID UUID] UUIDString]];
-        heicURL = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:fileName]];
+	NSString *fileName = [NSString stringWithFormat:@"livephoto_%@.heic", [[NSUUID UUID] UUIDString]];
+	NSURL *heicURL = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:fileName]];
         
         // 创建目标写入器
 	CFStringRef heicUTI = CFSTR("public.heic");
