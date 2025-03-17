@@ -1334,11 +1334,11 @@ static UIViewController *topView(void) {
 
 
 //以下部分为长按新增
-#import <CoreServices/CoreServices.h>
-#import <AVFoundation/AVFoundation.h>
-#import <Photos/Photos.h>
-#import <ImageIO/ImageIO.h>
-#import <MobileCoreServices/MobileCoreServices.h>
+@import CoreServices;
+@import AVFoundation;
+@import Photos;
+@import ImageIO;
+@import MobileCoreServices;
 
 // MARK: - 类型定义
 typedef NS_ENUM(NSUInteger, MediaType) {
@@ -1352,6 +1352,7 @@ typedef NS_ENUM(NSUInteger, MediaType) {
 static void saveMedia(NSArray<NSURL *> *mediaURLs, MediaType mediaType);
 static void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType);
 static NSString* mimeTypeToExtension(NSString *mimeType, MediaType mediaType);
+// 假设topViewController有实现
 static UIViewController* topViewController();
 static NSURL* _processLivePhotoVideo(NSURL *videoURL, NSString *identifier);
 static NSURL* _injectHEICMetadata(NSURL *imageURL, NSString *identifier);
@@ -1512,21 +1513,28 @@ static void showToast(NSString *message, BOOL isError);
 
 @end
 
-// MARK: - Hook实现 (优化版)
-%hook AWELongPressPanelTableViewController
+// 定义AWELongPressPanelTableViewController的分类
+@interface AWELongPressPanelTableViewController (Custom)
+- (NSArray *)dataArray;
+@end
+
+@implementation AWELongPressPanelTableViewController (Custom)
 
 - (NSArray *)dataArray {
-    NSArray *original = %orig;
+    NSArray *original = [super dataArray];
     if (![[NSUserDefaults standardUserDefaults] boolForKey:@"DYYYlongpressdownload"]) return original;
     
-    AWELongPressPanelViewGroupModel *group = [[%c(AWELongPressPanelViewGroupModel) alloc] init];
+    // 假设AWELongPressPanelViewGroupModel类已定义
+    AWELongPressPanelViewGroupModel *group = [[AWELongPressPanelViewGroupModel alloc] init];
     group.groupType = 0;
     
     NSMutableArray *actions = [NSMutableArray array];
+    // 假设AWEAwemeModel类已定义
     AWEAwemeModel *aweme = [self awemeModel];
     
     // 实况照片处理
     if (aweme.awemeType == 68 && aweme.albumImages.count > 0) {
+        // 假设AWEImageAlbumImageModel类已定义
         AWEImageAlbumImageModel *currentImage = aweme.albumImages[aweme.currentImageIndex - 1];
         
         if (currentImage.clipVideo) {
@@ -1564,7 +1572,7 @@ static void showToast(NSString *message, BOOL isError);
     return [@[group] arrayByAddingObjectsFromArray:original];
 }
 
-%end
+@end
 
 // MARK: - 辅助方法
 static void showToast(NSString *text, BOOL isError) {
@@ -1574,10 +1582,7 @@ static void showToast(NSString *text, BOOL isError) {
     }
     
     dispatch_async(dispatch_get_main_queue(), ^{
-        [%c(DUXToast) showText:text withCenterPoint:CGPointMake(CGRectGetMidX([UIScreen mainScreen].bounds), 100)];
+        // 假设DUXToast类和showText:withCenterPoint:方法已定义
+        [DUXToast showText:text withCenterPoint:CGPointMake(CGRectGetMidX([UIScreen mainScreen].bounds), 100)];
     });
-}
-
-%ctor {
-    %init(AWELongPressPanelTableViewController = objc_getClass("AWELongPressPanelTableViewController"));
 }
