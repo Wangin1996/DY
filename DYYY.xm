@@ -1340,6 +1340,7 @@ static UIViewController *topView(void) {
 #import <UIKit/UIKit.h>
 #import <Photos/Photos.h>
 #import <AssetsLibrary/AssetsLibrary.h>
+#import <AVFoundation/AVFoundation.h>
 
 // 假设这些类在其他头文件中定义，需要根据实际情况引入
 
@@ -1352,17 +1353,24 @@ typedef NS_ENUM(NSInteger, MediaType) {
 };
 
 // 显示提示信息的函数
-void showToast(NSString *message, BOOL isError) {
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"提示" message:message preferredStyle:UIAlertControllerStyleAlert];
-    UIAlertAction *okAction = [UIAlertAction actionWithTitle:@"确定" style:UIAlertActionStyleDefault handler:nil];
-    [alert addAction:okAction];
+static void showToast(NSString *text, BOOL isError) {
+    if (@available(iOS 10.0, *)) {
+        UIImpactFeedbackGenerator *generator = [[UIImpactFeedbackGenerator alloc] initWithStyle:isError ? UIImpactFeedbackStyleHeavy : UIImpactFeedbackStyleMedium];
+        [generator impactOccurred];
+    }
     
-    UIViewController *rootViewController = UIApplication.sharedApplication.keyWindow.rootViewController;
-    [rootViewController presentViewController:alert animated:YES completion:nil];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        // 这里假设 %c(DUXToast) 是自定义的显示提示的类，若实际不存在可替换为系统提示框
+        // 示例使用 UIAlertController 替代
+        UIAlertController *alert = [UIAlertController alertControllerWithTitle:isError ? @"错误" : @"提示" message:text preferredStyle:UIAlertControllerStyleAlert];
+        UIAlertAction *okAction = [UIAlertAction actionWithTitle:@"确定" style:UIAlertActionStyleDefault handler:nil];
+        [alert addAction:okAction];
+        UIViewController *rootVC = UIApplication.sharedApplication.keyWindow.rootViewController;
+        [rootVC presentViewController:alert animated:YES completion:nil];
+    });
 }
 
-// 下载媒体文件并保存到本地的函数
-// 下载媒体文件并保存到本地的函数
+// 下载媒体的函数
 void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
     switch (mediaType) {
         case MediaTypeImage: {
@@ -1418,18 +1426,11 @@ void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
                         showToast(@"下载音频失败", YES);
                         return;
                     }
-                    NSString *documentsPath = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject];
-                    NSString *audioPath = [documentsPath stringByAppendingPathComponent:@"downloaded_audio.m4a"];
-                    NSURL *audioURL = [NSURL fileURLWithPath:audioPath];
-                    NSError *moveError;
-                    [[NSFileManager defaultManager] moveItemAtURL:location toURL:audioURL error:&moveError];
-                    if (moveError) {
-                        NSLog(@"保存音频失败: %@", moveError.localizedDescription);
-                        showToast(@"保存音频失败", YES);
-                    } else {
-                        NSLog(@"音频保存成功");
-                        showToast(@"音频保存成功", NO);
-                    }
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        UIActivityViewController *activityVC = [[UIActivityViewController alloc] initWithActivityItems:@[location] applicationActivities:nil];
+                        UIViewController *rootVC = UIApplication.sharedApplication.keyWindow.rootViewController;
+                        [rootVC presentViewController:activityVC animated:YES completion:nil];
+                    });
                 }];
                 [downloadTask resume];
             }
@@ -1453,21 +1454,38 @@ void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
                             showToast(@"下载实况照片视频失败", YES);
                             return;
                         }
-                        // 这里需要使用 Photos 框架来保存实况照片
-                        PHPhotoLibrary *library = [PHPhotoLibrary sharedPhotoLibrary];
-                        [library performChanges:^{
-                            PHAssetCreationRequest *creationRequest = [PHAssetCreationRequest creationRequestForAsset];
-                            PHAssetResourceCreationOptions *imageOptions = [PHAssetResourceCreationOptions new];
-                            [creationRequest addResourceWithType:PHAssetResourceTypePhoto fileURL:imageLocation options:imageOptions];
-                            PHAssetResourceCreationOptions *videoOptions = [PHAssetResourceCreationOptions new];
-                            [creationRequest addResourceWithType:PHAssetResourceTypePairedVideo fileURL:videoLocation options:videoOptions];
-                        } completionHandler:^(BOOL success, NSError * _Nullable error) {
-                            if (error) {
-                                NSLog(@"保存实况照片失败: %@", error.localizedDescription);
-                                showToast(@"保存实况照片失败", YES);
-                            } else if (success) {
-                                NSLog(@"实况照片保存成功");
-                                showToast(@"实况照片保存成功", NO);
+                        // 将mp4转换为mov并处理元数据
+                        NSString *documentsPath = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject];
+                        NSString *movPath = [documentsPath stringByAppendingPathComponent:@"converted_video.mov"];
+                        NSURL *movURL = [NSURL fileURLWithPath:movPath];
+                        
+                        AVAsset *asset = [AVAsset assetWithURL:videoLocation];
+                        AVAssetExportSession *exportSession = [[AVAssetExportSession alloc] initWithAsset:asset presetName:AVAssetExportPresetHighestQuality];
+                        exportSession.outputURL = movURL;
+                        exportSession.outputFileType = AVFileTypeQuickTimeMovie;
+                        
+                        [exportSession exportAsynchronouslyWithCompletionHandler:^{
+                            if (exportSession.status == AVAssetExportSessionStatusCompleted) {
+                                // 处理元数据（这里只是示例，实际需要根据具体需求处理）
+                                PHPhotoLibrary *library = [PHPhotoLibrary sharedPhotoLibrary];
+                                [library performChanges:^{
+                                    PHAssetCreationRequest *creationRequest = [PHAssetCreationRequest creationRequestForAsset];
+                                    PHAssetResourceCreationOptions *imageOptions = [PHAssetResourceCreationOptions new];
+                                    [creationRequest addResourceWithType:PHAssetResourceTypePhoto fileURL:imageLocation options:imageOptions];
+                                    PHAssetResourceCreationOptions *videoOptions = [PHAssetResourceCreationOptions new];
+                                    [creationRequest addResourceWithType:PHAssetResourceTypePairedVideo fileURL:movURL options:videoOptions];
+                                } completionHandler:^(BOOL success, NSError * _Nullable error) {
+                                    if (error) {
+                                        NSLog(@"保存实况照片失败: %@", error.localizedDescription);
+                                        showToast(@"保存实况照片失败", YES);
+                                    } else if (success) {
+                                        NSLog(@"实况照片保存成功");
+                                        showToast(@"实况照片保存成功", NO);
+                                    }
+                                }];
+                            } else {
+                                NSLog(@"视频转换失败: %@", exportSession.error.localizedDescription);
+                                showToast(@"视频转换失败", YES);
                             }
                         }];
                     }];
