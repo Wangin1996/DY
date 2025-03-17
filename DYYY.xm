@@ -1815,8 +1815,9 @@ static NSURL* _injectHEICMetadata(NSURL *imageURL, NSString *identifier) {
         }
         
         NSMutableDictionary *metadata = [NSMutableDictionary dictionary];
+        // 修改元数据键名
         NSDictionary *makerAppleDict = @{
-            @"ContentIdentifier" : identifier,
+            @"17" : identifier,
             @"AssetIdentifier" : identifier
         };
         metadata[(__bridge NSString*)kCGImagePropertyMakerAppleDictionary] = makerAppleDict;
@@ -1857,7 +1858,8 @@ static NSURL* _processLivePhotoVideo(NSURL *videoURL, NSString *identifier) {
     AVMutableMetadataItem *stillTime = [[AVMutableMetadataItem alloc] init];
     stillTime.keySpace = AVMetadataKeySpaceQuickTimeMetadata;
     stillTime.key = @"com.apple.quicktime.still-image-time";
-    stillTime.value = @(0);
+    // 可以根据实际情况调整 still-image-time 的值
+    stillTime.value = @(0); 
     stillTime.dataType = (__bridge NSString*)kCMMetadataBaseDataType_SInt32; // 必须为32位
     
     AVAssetExportSession *exportSession = [AVAssetExportSession exportSessionWithAsset:asset presetName:AVAssetExportPresetPassthrough];
@@ -1922,6 +1924,10 @@ static void saveMedia(NSArray<NSURL *> *files, MediaType mediaType) {
             [files enumerateObjectsUsingBlock:^(NSURL *url, NSUInteger idx, BOOL *stop) {
                 [[NSFileManager defaultManager] removeItemAtURL:url error:nil];
             }];
+            
+            if (!success) {
+                NSLog(@"保存失败: %@", error.localizedDescription); // 添加日志
+            }
             
             dispatch_async(dispatch_get_main_queue(), ^{
                 if (success) {
