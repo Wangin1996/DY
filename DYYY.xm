@@ -1362,19 +1362,21 @@ void showToast(NSString *message, BOOL isError) {
 }
 
 // 下载媒体文件并保存到本地的函数
+// 下载媒体文件并保存到本地的函数
 void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
     switch (mediaType) {
         case MediaTypeImage: {
-            if (urls.count > 0) {
-                NSURL *url = urls.firstObject;
+            for (NSURL *url in urls) {
                 NSURLSession *session = [NSURLSession sharedSession];
                 NSURLSessionDownloadTask *downloadTask = [session downloadTaskWithURL:url completionHandler:^(NSURL * _Nullable location, NSURLResponse * _Nullable response, NSError * _Nullable error) {
                     if (error) {
+                        NSLog(@"下载图片失败: %@", error.localizedDescription);
                         showToast(@"下载图片失败", YES);
                         return;
                     }
                     UIImage *image = [UIImage imageWithData:[NSData dataWithContentsOfURL:location]];
                     UIImageWriteToSavedPhotosAlbum(image, nil, nil, nil);
+                    NSLog(@"图片保存成功");
                     showToast(@"图片保存成功", NO);
                 }];
                 [downloadTask resume];
@@ -1387,14 +1389,17 @@ void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
                 NSURLSession *session = [NSURLSession sharedSession];
                 NSURLSessionDownloadTask *downloadTask = [session downloadTaskWithURL:url completionHandler:^(NSURL * _Nullable location, NSURLResponse * _Nullable response, NSError * _Nullable error) {
                     if (error) {
+                        NSLog(@"下载视频失败: %@", error.localizedDescription);
                         showToast(@"下载视频失败", YES);
                         return;
                     }
                     ALAssetsLibrary *library = [[ALAssetsLibrary alloc] init];
                     [library writeVideoAtPathToSavedPhotosAlbum:location completionBlock:^(NSURL *assetURL, NSError *error) {
                         if (error) {
+                            NSLog(@"保存视频失败: %@", error.localizedDescription);
                             showToast(@"保存视频失败", YES);
                         } else {
+                            NSLog(@"视频保存成功");
                             showToast(@"视频保存成功", NO);
                         }
                     }];
@@ -1409,6 +1414,7 @@ void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
                 NSURLSession *session = [NSURLSession sharedSession];
                 NSURLSessionDownloadTask *downloadTask = [session downloadTaskWithURL:url completionHandler:^(NSURL * _Nullable location, NSURLResponse * _Nullable response, NSError * _Nullable error) {
                     if (error) {
+                        NSLog(@"下载音频失败: %@", error.localizedDescription);
                         showToast(@"下载音频失败", YES);
                         return;
                     }
@@ -1418,8 +1424,10 @@ void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
                     NSError *moveError;
                     [[NSFileManager defaultManager] moveItemAtURL:location toURL:audioURL error:&moveError];
                     if (moveError) {
+                        NSLog(@"保存音频失败: %@", moveError.localizedDescription);
                         showToast(@"保存音频失败", YES);
                     } else {
+                        NSLog(@"音频保存成功");
                         showToast(@"音频保存成功", NO);
                     }
                 }];
@@ -1435,11 +1443,13 @@ void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
                 NSURLSession *session = [NSURLSession sharedSession];
                 NSURLSessionDownloadTask *imageDownloadTask = [session downloadTaskWithURL:imageURL completionHandler:^(NSURL * _Nullable imageLocation, NSURLResponse * _Nullable response, NSError * _Nullable error) {
                     if (error) {
+                        NSLog(@"下载实况照片图片失败: %@", error.localizedDescription);
                         showToast(@"下载实况照片图片失败", YES);
                         return;
                     }
                     NSURLSessionDownloadTask *videoDownloadTask = [session downloadTaskWithURL:videoURL completionHandler:^(NSURL * _Nullable videoLocation, NSURLResponse * _Nullable response, NSError * _Nullable error) {
                         if (error) {
+                            NSLog(@"下载实况照片视频失败: %@", error.localizedDescription);
                             showToast(@"下载实况照片视频失败", YES);
                             return;
                         }
@@ -1452,10 +1462,12 @@ void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
                             PHAssetResourceCreationOptions *videoOptions = [PHAssetResourceCreationOptions new];
                             [creationRequest addResourceWithType:PHAssetResourceTypePairedVideo fileURL:videoLocation options:videoOptions];
                         } completionHandler:^(BOOL success, NSError * _Nullable error) {
-                            if (success) {
-                                showToast(@"实况照片保存成功", NO);
-                            } else {
+                            if (error) {
+                                NSLog(@"保存实况照片失败: %@", error.localizedDescription);
                                 showToast(@"保存实况照片失败", YES);
+                            } else if (success) {
+                                NSLog(@"实况照片保存成功");
+                                showToast(@"实况照片保存成功", NO);
                             }
                         }];
                     }];
