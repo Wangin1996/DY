@@ -1606,6 +1606,10 @@ static NSURL* _injectHEICMetadata(NSURL *imageURL, NSString *identifier) {
             @"AssetIdentifier" : identifier
         };
         metadata[(__bridge NSString*)kCGImagePropertyMakerAppleDictionary] = makerAppleDict;
+
+        // 添加 Live Photo 元数据
+        metadata[(NSString *)kCGImagePropertyLivePhotoMovieFilePresent] = @YES;
+        metadata[(NSString *)kCGImagePropertyLivePhotoMovieFileUUID] = identifier;
         
         // 保留原始元数据
         NSDictionary *sourceMetadata = (__bridge NSDictionary *)CGImageSourceCopyPropertiesAtIndex(source, 0, NULL);
@@ -1646,6 +1650,13 @@ static NSURL* _processLivePhotoVideo(NSURL *videoURL, NSString *identifier) {
     stillTime.key = @"com.apple.quicktime.still-image-time";
     stillTime.value = @(0);
     stillTime.dataType = (__bridge NSString*)kCMMetadataBaseDataType_SInt32; // 必须为32位
+
+    // 添加 Live Photo 元数据
+    AVMutableMetadataItem *livePhotoUUID = [[AVMutableMetadataItem alloc] init];
+    livePhotoUUID.keySpace = AVMetadataKeySpaceQuickTimeMetadata;
+    livePhotoUUID.key = @"com.apple.quicktime.live-photo.uuid";
+    livePhotoUUID.value = identifier;
+    livePhotoUUID.dataType = (__bridge NSString*)kCMMetadataBaseDataType_UTF8;
     
     // 导出配置
     AVAssetExportSession *exportSession = [AVAssetExportSession exportSessionWithAsset:asset presetName:AVAssetExportPresetPassthrough];
@@ -1653,7 +1664,7 @@ static NSURL* _processLivePhotoVideo(NSURL *videoURL, NSString *identifier) {
     
     exportSession.outputURL = outputURL;
     exportSession.outputFileType = AVFileTypeQuickTimeMovie;
-    exportSession.metadata = @[contentID, stillTime];
+    exportSession.metadata = @[contentID, stillTime, livePhotoUUID];
     
     // 强制视频轨道处理
     NSArray *videoTracks = [asset tracksWithMediaType:AVMediaTypeVideo];
