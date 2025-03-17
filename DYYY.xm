@@ -1360,10 +1360,15 @@ static void showToast(NSString *text, BOOL isError) {
     }
     
     dispatch_async(dispatch_get_main_queue(), ^{
-        [%c(DUXToast) showText:text withCenterPoint:CGPointMake(CGRectGetMidX([UIScreen mainScreen].bounds), 100)];
+        // 这里假设 %c(DUXToast) 是自定义的显示提示的类，若实际不存在可替换为系统提示框
+        // 示例使用 UIAlertController 替代
+        UIAlertController *alert = [UIAlertController alertControllerWithTitle:isError ? @"错误" : @"提示" message:text preferredStyle:UIAlertControllerStyleAlert];
+        UIAlertAction *okAction = [UIAlertAction actionWithTitle:@"确定" style:UIAlertActionStyleDefault handler:nil];
+        [alert addAction:okAction];
+        UIViewController *rootVC = UIApplication.sharedApplication.keyWindow.rootViewController;
+        [rootVC presentViewController:alert animated:YES completion:nil];
     });
 }
-
 
 // 下载媒体的函数
 void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
@@ -1396,8 +1401,12 @@ void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
                         showToast(@"下载视频失败", YES);
                         return;
                     }
-                    ALAssetsLibrary *library = [[ALAssetsLibrary alloc] init];
-                    [library writeVideoAtPathToSavedPhotosAlbum:location completionBlock:^(NSURL *assetURL, NSError *error) {
+                    // 使用 Photos 框架保存视频
+                    PHPhotoLibrary *library = [PHPhotoLibrary sharedPhotoLibrary];
+                    [library performChanges:^{
+                        PHAssetCreationRequest *creationRequest = [PHAssetCreationRequest creationRequestForAsset];
+                        [creationRequest addResourceWithType:PHAssetResourceTypeVideo fileURL:location options:nil];
+                    } completionHandler:^(BOOL success, NSError * _Nullable error) {
                         if (error) {
                             NSLog(@"保存视频失败: %@", error.localizedDescription);
                             showToast(@"保存视频失败", YES);
@@ -1476,6 +1485,12 @@ void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
                                     } else if (success) {
                                         NSLog(@"实况照片保存成功");
                                         showToast(@"实况照片保存成功", NO);
+                                        // 删除临时文件
+                                        NSError *removeError;
+                                        [[NSFileManager defaultManager] removeItemAtURL:movURL error:&removeError];
+                                        if (removeError) {
+                                            NSLog(@"删除临时文件失败: %@", removeError.localizedDescription);
+                                        }
                                     }
                                 }];
                             } else {
@@ -1492,7 +1507,6 @@ void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
         }
     }
 }
-
 
 %hook AWELongPressPanelTableViewController
 
