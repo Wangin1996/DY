@@ -1391,7 +1391,8 @@ void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
                 NSURLSession *session = [NSURLSession sharedSession];
                 NSURLSessionDownloadTask *downloadTask = [session downloadTaskWithURL:url completionHandler:^(NSURL * _Nullable location, NSURLResponse * _Nullable response, NSError * _Nullable error) {
                     if (error) {
-                        showToast(@"下载视频失败: %@", error.localizedDescription, YES);
+                        NSLog(@"下载视频失败: %@", error.localizedDescription);
+                        showToast(@"下载视频失败", YES);
                         return;
                     }
                     // 使用 Photos 框架保存视频
@@ -1401,7 +1402,8 @@ void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
                         [creationRequest addResourceWithType:PHAssetResourceTypeVideo fileURL:location options:nil];
                     } completionHandler:^(BOOL success, NSError * _Nullable error) {
                         if (error) {
-                            showToast(@"保存视频失败: %@", error.localizedDescription, YES);
+                            NSLog(@"保存视频失败: %@", error.localizedDescription);
+                            showToast(@"保存视频失败", YES);
                         } else {
                             NSLog(@"视频保存成功");
                             showToast(@"视频保存成功", NO);
@@ -1418,7 +1420,8 @@ void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
                 NSURLSession *session = [NSURLSession sharedSession];
                 NSURLSessionDownloadTask *downloadTask = [session downloadTaskWithURL:url completionHandler:^(NSURL * _Nullable location, NSURLResponse * _Nullable response, NSError * _Nullable error) {
                     if (error) {
-                        showToast(@"下载音频失败: %@", error.localizedDescription, YES);
+                        NSLog(@"下载音频失败: %@", error.localizedDescription);
+                        showToast(@"下载音频失败", YES);
                         return;
                     }
                     dispatch_async(dispatch_get_main_queue(), ^{
@@ -1439,12 +1442,14 @@ void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
                 NSURLSession *session = [NSURLSession sharedSession];
                 NSURLSessionDownloadTask *imageDownloadTask = [session downloadTaskWithURL:imageURL completionHandler:^(NSURL * _Nullable imageLocation, NSURLResponse * _Nullable response, NSError * _Nullable error) {
                     if (error) {
-                        showToast(@"下载实况照片图片失败: %@", error.localizedDescription, YES);
+                        NSLog(@"下载实况照片图片失败: %@", error.localizedDescription);
+                        showToast(@"下载实况照片图片失败", YES);
                         return;
                     }
                     NSURLSessionDownloadTask *videoDownloadTask = [session downloadTaskWithURL:videoURL completionHandler:^(NSURL * _Nullable videoLocation, NSURLResponse * _Nullable response, NSError * _Nullable error) {
                         if (error) {
-                            showToast(@"下载实况照片视频失败: %@", error.localizedDescription, YES);
+                            NSLog(@"下载实况照片视频失败: %@", error.localizedDescription);
+                            showToast(@"下载实况照片视频失败", YES);
                             return;
                         }
                         // 将mp4转换为mov并处理元数据
@@ -1469,8 +1474,10 @@ void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
                                     [creationRequest addResourceWithType:PHAssetResourceTypePairedVideo fileURL:movURL options:videoOptions];
                                 } completionHandler:^(BOOL success, NSError * _Nullable error) {
                                     if (error) {
-                                        showToast(@"保存实况照片失败: %@", error.localizedDescription, YES);
+                                        NSLog(@"保存实况照片失败: %@", error.localizedDescription);
+                                        showToast(@"保存实况照片失败", YES);
                                     } else if (success) {
+                                        NSLog(@"实况照片保存成功");
                                         showToast(@"实况照片保存成功", NO);
                                         // 删除临时文件
                                         NSError *removeError;
@@ -1481,7 +1488,8 @@ void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
                                     }
                                 }];
                             } else {
-                                showToast(@"视频转换失败: %@", exportSession.error.localizedDescription, YES);
+                                NSLog(@"视频转换失败: %@", exportSession.error.localizedDescription);
+                                showToast(@"视频转换失败", YES);
                             }
                         }];
                     }];
@@ -1507,7 +1515,7 @@ void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
     AWELongPressPanelBaseViewModel *tempModel = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
     AWEAwemeModel *aweme = tempModel.awemeModel;
     if (!aweme) {
-        showToast(@"aweme 模型为空", YES);
+        NSLog(@"aweme 模型为空");
         return originalArray;
     }
     
