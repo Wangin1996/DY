@@ -1360,15 +1360,10 @@ static void showToast(NSString *text, BOOL isError) {
     }
     
     dispatch_async(dispatch_get_main_queue(), ^{
-        // 这里假设 %c(DUXToast) 是自定义的显示提示的类，若实际不存在可替换为系统提示框
-        // 示例使用 UIAlertController 替代
-        UIAlertController *alert = [UIAlertController alertControllerWithTitle:isError ? @"错误" : @"提示" message:text preferredStyle:UIAlertControllerStyleAlert];
-        UIAlertAction *okAction = [UIAlertAction actionWithTitle:@"确定" style:UIAlertActionStyleDefault handler:nil];
-        [alert addAction:okAction];
-        UIViewController *rootVC = UIApplication.sharedApplication.keyWindow.rootViewController;
-        [rootVC presentViewController:alert animated:YES completion:nil];
+        [%c(DUXToast) showText:text withCenterPoint:CGPointMake(CGRectGetMidX([UIScreen mainScreen].bounds), 100)];
     });
 }
+
 
 // 下载媒体的函数
 void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
@@ -1497,6 +1492,7 @@ void downloadMedia(NSArray<NSURL *> *urls, MediaType mediaType) {
         }
     }
 }
+
 
 %hook AWELongPressPanelTableViewController
 
