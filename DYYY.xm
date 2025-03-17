@@ -1770,49 +1770,54 @@ static void saveLivePhotoToLibrary(PHLivePhoto *livePhoto, void (^completion)(BO
         PHAssetCreationRequest *request = [PHAssetCreationRequest creationRequestForAsset];
 
         // 配置请求资源的选项
-        PHLivePhotoRequestOptions *options = [[PHLivePhotoRequestOptions alloc] init];
-        options.deliveryMode = PHLivePhotoDeliveryModeHighQualityFormat;
+        if (@available(iOS 11.0, *)) {
+            PHLivePhotoRequestOptions *options = [[PHLivePhotoRequestOptions alloc] init];
+            options.deliveryMode = PHLivePhotoDeliveryModeHighQualityFormat;
 
-        [livePhoto requestResourcesWithOptions:options resultHandler:^(NSArray<PHAssetResource *> * _Nonnull photoResources, NSArray<PHAssetResource *> * _Nonnull videoResources, NSError * _Nullable resultError) {
-            if (resultError) {
-                completion(NO, resultError);
-                return;
-            }
-
-            if (photoResources.count == 0 || videoResources.count == 0) {
-                completion(NO, [NSError errorWithDomain:@"LivePhotoError" code:-1 userInfo:@{NSLocalizedDescriptionKey: @"未找到图片或视频资源"}]);
-                return;
-            }
-
-            PHAssetResource *photoResource = photoResources.firstObject;
-            PHAssetResource *videoResource = videoResources.firstObject;
-
-            // 获取图片资源
-            NSString *tempPhotoPath = [NSTemporaryDirectory() stringByAppendingPathComponent:@"tempPhoto.heic"];
-            NSURL *tempPhotoURL = [NSURL fileURLWithPath:tempPhotoPath];
-            [[PHAssetResourceManager defaultManager] writeDataForAssetResource:photoResource toFile:tempPhotoURL options:nil completionHandler:^(BOOL success, NSError * _Nullable writeError) {
-                if (success) {
-                    [request addResourceWithType:PHAssetResourceTypePhoto fileURL:tempPhotoURL options:nil];
-                } else {
-                    completion(NO, writeError);
+            [livePhoto requestResourcesWithOptions:options resultHandler:^(NSArray<PHAssetResource *> * _Nonnull photoResources, NSArray<PHAssetResource *> * _Nonnull videoResources, NSError * _Nullable resultError) {
+                if (resultError) {
+                    completion(NO, resultError);
                     return;
                 }
 
-                // 获取视频资源
-                NSString *tempVideoPath = [NSTemporaryDirectory() stringByAppendingPathComponent:@"tempVideo.mov"];
-                NSURL *tempVideoURL = [NSURL fileURLWithPath:tempVideoPath];
-                [[PHAssetResourceManager defaultManager] writeDataForAssetResource:videoResource toFile:tempVideoURL options:nil completionHandler:^(BOOL success, NSError * _Nullable writeError) {
+                if (photoResources.count == 0 || videoResources.count == 0) {
+                    completion(NO, [NSError errorWithDomain:@"LivePhotoError" code:-1 userInfo:@{NSLocalizedDescriptionKey: @"未找到图片或视频资源"}]);
+                    return;
+                }
+
+                PHAssetResource *photoResource = photoResources.firstObject;
+                PHAssetResource *videoResource = videoResources.firstObject;
+
+                // 获取图片资源
+                NSString *tempPhotoPath = [NSTemporaryDirectory() stringByAppendingPathComponent:@"tempPhoto.heic"];
+                NSURL *tempPhotoURL = [NSURL fileURLWithPath:tempPhotoPath];
+                [[PHAssetResourceManager defaultManager] writeDataForAssetResource:photoResource toFile:tempPhotoURL options:nil completionHandler:^(BOOL success, NSError * _Nullable writeError) {
                     if (success) {
-                        [request addResourceWithType:PHAssetResourceTypePairedVideo fileURL:tempVideoURL options:nil];
+                        [request addResourceWithType:PHAssetResourceTypePhoto fileURL:tempPhotoURL options:nil];
                     } else {
                         completion(NO, writeError);
                         return;
                     }
 
-                    completion(YES, nil);
+                    // 获取视频资源
+                    NSString *tempVideoPath = [NSTemporaryDirectory() stringByAppendingPathComponent:@"tempVideo.mov"];
+                    NSURL *tempVideoURL = [NSURL fileURLWithPath:tempVideoPath];
+                    [[PHAssetResourceManager defaultManager] writeDataForAssetResource:videoResource toFile:tempVideoURL options:nil completionHandler:^(BOOL success, NSError * _Nullable writeError) {
+                        if (success) {
+                            [request addResourceWithType:PHAssetResourceTypePairedVideo fileURL:tempVideoURL options:nil];
+                        } else {
+                            completion(NO, writeError);
+                            return;
+                        }
+
+                        completion(YES, nil);
+                    }];
                 }];
             }];
-        }];
+        } else {
+            // 处理不支持的情况
+            completion(NO, [NSError errorWithDomain:@"LivePhotoError" code:-2 userInfo:@{NSLocalizedDescriptionKey: @"当前系统版本不支持保存 Live Photo"}]);
+        }
     } completionHandler:^(BOOL success, NSError * _Nullable error) {
         completion(success, error);
     }];
