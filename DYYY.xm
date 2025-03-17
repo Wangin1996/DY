@@ -1409,15 +1409,6 @@ static void saveMedia(NSURL *mediaURL, MediaType mediaType) {
     }];
 }
 
-// 定义 topView 函数
-UIViewController* topView() {
-    UIViewController *rootViewController = UIApplication.sharedApplication.keyWindow.rootViewController;
-    UIViewController *topVC = rootViewController;
-    while (topVC.presentedViewController) {
-        topVC = topVC.presentedViewController;
-    }
-    return topVC;
-}
 
 // 下载媒体文件，支持多种格式
 static void downloadMedia(NSURL *url, MediaType mediaType, void (^completion)(NSURL *fileURL, NSError *error)) {
@@ -1628,7 +1619,7 @@ static void downloadMedia(NSURL *url, MediaType mediaType, void (^completion)(NS
         AWELongPressPanelBaseViewModel *vm = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
         vm.describeString = action[@"title"];
         // 修正 DYYY 未定义问题，这里假设使用 1 作为替代值
-        vm.enterMethod = 1;
+        vm.enterMethod = DYYY;
         vm.actionType = 100 + idx;
         vm.showIfNeed = YES;
         vm.duxIconName = action[@"icon"];
