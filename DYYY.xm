@@ -1340,6 +1340,7 @@ static UIViewController *topView(void) {
 #import <ImageIO/ImageIO.h>
 #import <MobileCoreServices/MobileCoreServices.h>
 #import <objc/runtime.h>
+#import <UIKit/UIImpactFeedbackGenerator.h>  // 明确导入触觉反馈头文件
 
 // MARK: - 类型定义
 typedef NS_ENUM(NSUInteger, MediaType) {
@@ -1466,7 +1467,7 @@ static void showToast(NSString *message, BOOL isError);
     [customActions enumerateObjectsUsingBlock:^(NSDictionary *action, NSUInteger idx, BOOL *stop) {
         AWELongPressPanelBaseViewModel *vm = [[%c(AWELongPressPanelBaseViewModel) alloc] init];
         vm.describeString = action[@"title"];
-        vm.enterMethod = 1001; // 自定义方法标识
+	vm.enterMethod = @"handleCustomDownloadAction";
         vm.actionType = 1000 + idx;
         vm.showIfNeed = YES;
         vm.duxIconName = action[@"icon"];
@@ -1557,8 +1558,10 @@ static NSURL* injectHEICMetadata(NSURL *imageURL, NSString *identifier) {
     if (!source) return nil;
     
     NSURL *outputURL = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:[NSString stringWithFormat:@"live_%@.heic", [[NSUUID UUID] UUIDString]]]];
-    
-    CGImageDestinationRef destination = CGImageDestinationCreateWithURL((__bridge CFURLRef)outputURL, kUTTypeHEIC, 1, NULL);
+
+    CFStringRef heicUTI = CFSTR("public.heic");
+    CGImageDestinationRef destination = CGImageDestinationCreateWithURL((__bridge CFURLRef)outputURL, heicUTI, 1, NULL);
+
     if (!destination) {
         CFRelease(source);
         return nil;
@@ -1673,7 +1676,9 @@ static UIViewController* topViewController() {
 void showToast(NSString *text, BOOL isError) {
     if (@available(iOS 10.0, *)) {
         UIImpactFeedbackStyle style = isError ? UIImpactFeedbackStyleHeavy : UIImpactFeedbackStyleMedium;
-        [UIImpactFeedbackGenerator.new initWithStyle:style].impactOccurred();
+        UIImpactFeedbackGenerator *generator = [[UIImpactFeedbackGenerator alloc] initWithStyle:style];
+        [generator prepare];
+        [generator impactOccurred];
     }
     
     dispatch_async(dispatch_get_main_queue(), ^{
